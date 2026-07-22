@@ -1,0 +1,13 @@
+{
+  "name": "examprep-admin",
+  "compatibility_date": "2026-07-01",
+  "services": [
+    { "binding": "API", "service": "examprep-api" }
+  ],
+  "assets": {
+    "directory": "./wwwroot",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  }
+}
