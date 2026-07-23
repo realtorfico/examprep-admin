@@ -39,14 +39,14 @@ async function renderQuestions() {
   var data = await apiFetch('/console/questions?examType=notary');
   var rows = data.questions.map(function (q) {
     return '<tr><td>' + q.topic + '</td><td>' + q.question.slice(0, 80) + '</td>' +
-      '<td>' + q.weight + '</td>' +
+      '<td>' + q.weight + '</td><td><span class="badge">' + (q.source || '—') + '</span></td>' +
       '<td><button class="btn" data-act="delete-question" data-id="' + q.id + '">Delete</button></td></tr>';
   }).join('');
 
   appEl.innerHTML = renderTabs('questions') +
     '<div class="card"><button class="btn btn-primary" data-act="import-questions">Import JSON…</button> ' +
     '<input type="file" id="import-file" class="hidden-file-input" accept="application/json"></div>' +
-    '<table><thead><tr><th>Topic</th><th>Question</th><th>Weight</th><th></th></tr></thead>' +
+    '<table><thead><tr><th>Topic</th><th>Question</th><th>Weight</th><th>Source</th><th></th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
 }
 
