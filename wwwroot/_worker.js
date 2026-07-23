@@ -11,8 +11,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) {
+      // app.js already calls paths like /console/codes (matching the backend's real
+      // routes) via API_BASE=/api, so this only strips the /api prefix — it must NOT
+      // also prepend /console, or requests double up to /console/console/... (404).
       const target = new URL(request.url);
-      target.pathname = '/console' + url.pathname.replace(/^\/api/, '');
+      target.pathname = url.pathname.replace(/^\/api/, '');
       const proxied = new Request(target, request);
       return env.API.fetch(proxied);
     }
