@@ -14,3 +14,6 @@ input, select { padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid #
 .badge.revoked { background: #fde2e2; color: #b91c1c; }
 .badge.unused { background: #e0edff; color: #1d4ed8; }
 .badge.redeemed { background: #e2f6e6; color: #15803d; }
+.generate-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.expires-input { width: 11rem; }
+.hidden-file-input { display: none; }

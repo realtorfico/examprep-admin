@@ -22,10 +22,10 @@ async function renderCodes() {
 
   appEl.innerHTML = renderTabs('codes') +
     '<div class="card">' +
-    '<form data-act="generate-code" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">' +
+    '<form data-act="generate-code" class="generate-form">' +
     '<select name="examType"><option value="notary">Notary</option></select>' +
     '<input type="text" name="note" placeholder="note (optional)">' +
-    '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" style="width:11rem">' +
+    '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn btn-primary" type="submit">Generate code</button>' +
     '</form></div>' +
     '<table><thead><tr><th>Code</th><th>Exam</th><th>Status</th><th>Expires</th><th>Redeemed</th><th></th></tr></thead>' +
@@ -45,7 +45,7 @@ async function renderQuestions() {
 
   appEl.innerHTML = renderTabs('questions') +
     '<div class="card"><button class="btn btn-primary" data-act="import-questions">Import JSON…</button> ' +
-    '<input type="file" id="import-file" accept="application/json" style="display:none"></div>' +
+    '<input type="file" id="import-file" class="hidden-file-input" accept="application/json"></div>' +
     '<table><thead><tr><th>Topic</th><th>Question</th><th>Weight</th><th></th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
 }
