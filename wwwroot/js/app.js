@@ -33,7 +33,7 @@ function renderTopControls() {
 }
 
 function renderTabs(active) {
-  var tabs = [['codes', 'Codes'], ['questions', 'Questions'], ['stats', 'Stats']];
+  var tabs = [['codes', 'Codes'], ['questions', 'Questions'], ['stats', 'Stats'], ['settings', 'Settings']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -114,6 +114,33 @@ async function renderStats() {
     '<h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table>';
 }
 
+// ---- Settings (course pricing) --------------------------------------------
+// Flat list, not sub-tabbed like Questions — only 3 exam types, so one screen showing
+// all of them at once is simpler than clicking between tabs to see/edit each price.
+
+async function renderSettings() {
+  appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
+  var data = await apiFetch('/console/pricing');
+  var byExam = {};
+  data.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
+
+  var rows = EXAM_TYPES.map(function (t) {
+    var examType = t[0], label = t[1];
+    var p = byExam[examType];
+    var dollars = p ? (p.price_cents / 100).toFixed(2) : '';
+    return '<div class="card price-row">' +
+      '<span class="price-row-label">' + label + '</span>' +
+      '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" value="' + dollars + '" placeholder="0.00">' +
+      '<button class="btn-primary btn-sm" data-act="save-price" data-exam="' + examType + '">Save</button>' +
+      '</div>';
+  }).join('');
+
+  appEl.innerHTML = renderTabs('settings') +
+    '<h3>Course pricing</h3>' +
+    '<p class="muted">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
+    rows;
+}
+
 // ---- Routing + delegated events --------------------------------------
 
 function route() {
@@ -121,6 +148,7 @@ function route() {
   if (view === 'codes') renderCodes();
   else if (view === 'questions') renderQuestions();
   else if (view === 'stats') renderStats();
+  else if (view === 'settings') renderSettings();
   else renderCodes();
 }
 window.addEventListener('hashchange', route);
@@ -157,6 +185,13 @@ appEl.addEventListener('click', async function (e) {
   } else if (act === 'select-exam-tab') {
     currentQuestionsExamType = el.getAttribute('data-exam');
     renderQuestions();
+  } else if (act === 'save-price') {
+    var examType = el.getAttribute('data-exam');
+    var input = document.querySelector('.price-input[data-exam="' + examType + '"]');
+    var dollars = parseFloat(input.value);
+    if (isNaN(dollars) || dollars < 0) { alert('Enter a valid price.'); return; }
+    await apiFetch('/console/pricing', { method: 'POST', body: { examType: examType, priceCents: Math.round(dollars * 100) } });
+    renderSettings();
   } else if (act === 'toggle-theme') {
     var nextTheme = el.getAttribute('data-next');
     var local = loadLocalPrefs();
