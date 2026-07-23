@@ -1,8 +1,39 @@
 var appEl = document.getElementById('app');
 
+// ---- Theme / font (localStorage-only here — no app-user token on the admin site) ---
+
+function loadLocalPrefs() {
+  return {
+    theme: localStorage.getItem('examprep_admin_theme') || 'dark',
+    fontScale: parseFloat(localStorage.getItem('examprep_admin_font') || '1'),
+  };
+}
+function saveLocalPrefs(theme, fontScale) {
+  localStorage.setItem('examprep_admin_theme', theme);
+  localStorage.setItem('examprep_admin_font', String(fontScale));
+}
+function applyTheme(theme, fontScale) {
+  var root = document.documentElement;
+  if (theme && theme !== 'system') root.setAttribute('data-theme', theme);
+  else root.removeAttribute('data-theme');
+  if (fontScale) root.style.setProperty('--font-scale', fontScale);
+}
+
+function renderTopControls() {
+  var local = loadLocalPrefs();
+  var nextTheme = local.theme === 'light' ? 'dark' : 'light';
+  return '<div class="top-controls">' +
+    '<div class="control-group"><button class="btn-secondary btn-sm" data-act="toggle-theme" data-next="' + nextTheme + '">' +
+    (local.theme === 'light' ? '☀️ Light' : '🌙 Dark') + '</button></div>' +
+    '<div class="control-group"><span class="muted" style="font-size:0.8rem">Font:</span>' +
+    '<button class="btn-secondary btn-sm" data-act="font-down">A-</button>' +
+    '<button class="btn-secondary btn-sm" data-act="font-up">A+</button></div>' +
+    '</div>';
+}
+
 function renderTabs(active) {
   var tabs = [['codes', 'Codes'], ['questions', 'Questions'], ['stats', 'Stats']];
-  return '<nav class="tabs">' + tabs.map(function (t) {
+  return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
 }
@@ -26,7 +57,7 @@ async function renderCodes() {
     '<select name="examType"><option value="notary">Notary</option></select>' +
     '<input type="text" name="note" placeholder="note (optional)">' +
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
-    '<button class="btn btn-primary" type="submit">Generate code</button>' +
+    '<button class="btn-primary" type="submit">Generate code</button>' +
     '</form></div>' +
     '<table><thead><tr><th>Code</th><th>Exam</th><th>Status</th><th>Expires</th><th>Redeemed</th><th></th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
@@ -44,7 +75,7 @@ async function renderQuestions() {
   }).join('');
 
   appEl.innerHTML = renderTabs('questions') +
-    '<div class="card"><button class="btn btn-primary" data-act="import-questions">Import JSON…</button> ' +
+    '<div class="card"><button class="btn-primary" data-act="import-questions">Import JSON…</button> ' +
     '<input type="file" id="import-file" class="hidden-file-input" accept="application/json"></div>' +
     '<table><thead><tr><th>Topic</th><th>Question</th><th>Weight</th><th>Source</th><th></th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
@@ -109,6 +140,17 @@ appEl.addEventListener('click', async function (e) {
     renderQuestions();
   } else if (act === 'import-questions') {
     document.getElementById('import-file').click();
+  } else if (act === 'toggle-theme') {
+    var nextTheme = el.getAttribute('data-next');
+    var local = loadLocalPrefs();
+    saveLocalPrefs(nextTheme, local.fontScale);
+    applyTheme(nextTheme, local.fontScale);
+    route();
+  } else if (act === 'font-up' || act === 'font-down') {
+    var l = loadLocalPrefs();
+    var next = Math.max(0.85, Math.min(1.4, l.fontScale + (act === 'font-up' ? 0.05 : -0.05)));
+    saveLocalPrefs(l.theme, next);
+    applyTheme(l.theme, next);
   }
 });
 
@@ -122,4 +164,8 @@ document.addEventListener('change', async function (e) {
   }
 });
 
-route();
+(function boot() {
+  var local = loadLocalPrefs();
+  applyTheme(local.theme, local.fontScale);
+  route();
+})();
