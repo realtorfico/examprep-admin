@@ -22,9 +22,10 @@ function applyTheme(theme, fontScale) {
 function renderTopControls() {
   var local = loadLocalPrefs();
   var nextTheme = local.theme === 'light' ? 'dark' : 'light';
+  // Label shows what clicking WILL switch to, not the current theme.
   return '<div class="top-controls">' +
     '<div class="control-group"><button class="btn-secondary btn-sm" data-act="toggle-theme" data-next="' + nextTheme + '">' +
-    (local.theme === 'light' ? '☀️ Light' : '🌙 Dark') + '</button></div>' +
+    (nextTheme === 'dark' ? '🌙 Dark' : '☀️ Light') + '</button></div>' +
     '<div class="control-group"><span class="muted" style="font-size:0.8rem">Font:</span>' +
     '<button class="btn-secondary btn-sm" data-act="font-down">A-</button>' +
     '<button class="btn-secondary btn-sm" data-act="font-up">A+</button></div>' +
