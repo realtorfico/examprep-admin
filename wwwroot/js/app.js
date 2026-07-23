@@ -46,6 +46,7 @@ async function renderCodes() {
   var rows = data.codes.map(function (c) {
     return '<tr><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
+      '<td>' + (c.note || '—') + '</td>' +
       '<td>' + (c.expires_at ? new Date(c.expires_at * 1000).toLocaleDateString() : '—') + '</td>' +
       '<td>' + (c.redeemed_at ? new Date(c.redeemed_at * 1000).toLocaleDateString() : '—') + '</td>' +
       '<td>' + (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td></tr>';
@@ -59,7 +60,7 @@ async function renderCodes() {
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
     '</form></div>' +
-    '<table><thead><tr><th>Code</th><th>Exam</th><th>Status</th><th>Expires</th><th>Redeemed</th><th></th></tr></thead>' +
+    '<table><thead><tr><th>Code</th><th>Exam</th><th>Status</th><th>Note</th><th>Expires</th><th>Redeemed</th><th></th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
 }
 
