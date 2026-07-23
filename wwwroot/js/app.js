@@ -66,18 +66,30 @@ async function renderCodes() {
 
 // ---- Questions --------------------------------------------------------
 
+var EXAM_TYPES = [['notary', 'California Notary'], ['dre', 'California DRE'], ['mlo', 'National MLO']];
+var currentQuestionsExamType = 'notary';
+
+function renderExamSubTabs() {
+  return '<nav class="tabs sub-tabs">' + EXAM_TYPES.map(function (t) {
+    return '<a href="#" data-act="select-exam-tab" data-exam="' + t[0] + '"' +
+      (t[0] === currentQuestionsExamType ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
+  }).join('') + '</nav>';
+}
+
 async function renderQuestions() {
-  appEl.innerHTML = renderTabs('questions') + '<p>Loading…</p>';
-  var data = await apiFetch('/console/questions?examType=notary');
+  appEl.innerHTML = renderTabs('questions') + renderExamSubTabs() + '<p>Loading…</p>';
+  var data = await apiFetch('/console/questions?examType=' + currentQuestionsExamType);
   var rows = data.questions.map(function (q) {
     return '<tr><td>' + q.topic + '</td><td>' + q.question.slice(0, 80) + '</td>' +
       '<td>' + q.weight + '</td><td><span class="badge">' + (q.source || '—') + '</span></td>' +
       '<td><button class="btn" data-act="delete-question" data-id="' + q.id + '">Delete</button></td></tr>';
   }).join('');
+  var empty = data.questions.length ? '' : '<p class="muted">No questions yet for this exam.</p>';
 
-  appEl.innerHTML = renderTabs('questions') +
+  appEl.innerHTML = renderTabs('questions') + renderExamSubTabs() +
     '<div class="card"><button class="btn-primary" data-act="import-questions">Import JSON…</button> ' +
     '<input type="file" id="import-file" class="hidden-file-input" accept="application/json"></div>' +
+    empty +
     '<table><thead><tr><th>Topic</th><th>Question</th><th>Weight</th><th>Source</th><th></th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
 }
@@ -141,6 +153,9 @@ appEl.addEventListener('click', async function (e) {
     renderQuestions();
   } else if (act === 'import-questions') {
     document.getElementById('import-file').click();
+  } else if (act === 'select-exam-tab') {
+    currentQuestionsExamType = el.getAttribute('data-exam');
+    renderQuestions();
   } else if (act === 'toggle-theme') {
     var nextTheme = el.getAttribute('data-next');
     var local = loadLocalPrefs();
