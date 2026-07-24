@@ -33,7 +33,7 @@ function renderTopControls() {
 }
 
 function renderTabs(active) {
-  var tabs = [['codes', 'Codes'], ['questions', 'Questions'], ['stats', 'Stats'], ['settings', 'Settings']];
+  var tabs = [['codes', 'Codes'], ['questions', 'Questions'], ['stats', 'Stats'], ['points', 'Points'], ['settings', 'Settings']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -120,11 +120,16 @@ async function renderStats() {
 
 async function renderSettings() {
   appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
-  var data = await apiFetch('/console/pricing');
-  var byExam = {};
-  data.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
+  var results = await Promise.all([
+    apiFetch('/console/pricing'),
+    apiFetch('/console/point-rules'),
+    apiFetch('/console/exam-points-required'),
+  ]);
+  var pricingData = results[0], pointRulesData = results[1], pointsRequiredData = results[2];
 
-  var rows = EXAM_TYPES.map(function (t) {
+  var byExam = {};
+  pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
+  var priceRows = EXAM_TYPES.map(function (t) {
     var examType = t[0], label = t[1];
     var p = byExam[examType];
     var dollars = p ? (p.price_cents / 100).toFixed(2) : '';
@@ -135,10 +140,82 @@ async function renderSettings() {
       '</div>';
   }).join('');
 
+  var ruleRows = pointRulesData.pointRules.map(function (r) {
+    return '<div class="card price-row">' +
+      '<span class="price-row-label">' + r.label + '</span>' +
+      '<input type="number" min="0" class="rule-points-input" data-task="' + r.task_key + '" value="' + r.points + '" placeholder="points">' +
+      '<label class="rule-active-label"><input type="checkbox" class="rule-active-input" data-task="' + r.task_key + '"' +
+      (r.active ? ' checked' : '') + '> Active</label>' +
+      '<button class="btn-primary btn-sm" data-act="save-point-rule" data-task="' + r.task_key + '" data-label="' + r.label + '">Save</button>' +
+      '</div>';
+  }).join('');
+
+  var byExamPoints = {};
+  pointsRequiredData.examPointsRequired.forEach(function (p) { byExamPoints[p.exam_type] = p; });
+  var pointsRequiredRows = EXAM_TYPES.map(function (t) {
+    var examType = t[0], label = t[1];
+    var p = byExamPoints[examType];
+    var pts = p ? p.points_required : '';
+    return '<div class="card price-row">' +
+      '<span class="price-row-label">' + label + '</span>' +
+      '<input type="number" min="0" class="points-required-input" data-exam="' + examType + '" value="' + pts + '" placeholder="points needed">' +
+      '<button class="btn-primary btn-sm" data-act="save-points-required" data-exam="' + examType + '">Save</button>' +
+      '</div>';
+  }).join('');
+
   appEl.innerHTML = renderTabs('settings') +
     '<h3>Course pricing</h3>' +
     '<p class="muted">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
-    rows;
+    priceRows +
+    '<h3>Point rules</h3>' +
+    '<p class="muted">How many points each referral task awards. Uncheck Active to stop awarding it without losing history.</p>' +
+    ruleRows +
+    '<h3>Points required per course</h3>' +
+    '<p class="muted">How many points a buyer needs to redeem each course for free.</p>' +
+    pointsRequiredRows;
+}
+
+// ---- Points (accounts, manual adjustments, referral log) ------------------
+
+async function renderPoints() {
+  appEl.innerHTML = renderTabs('points') + '<p>Loading…</p>';
+  var results = await Promise.all([
+    apiFetch('/console/accounts'),
+    apiFetch('/console/referrals'),
+  ]);
+  var accountsData = results[0], referralsData = results[1];
+
+  var accountRows = accountsData.accounts.map(function (a) {
+    return '<tr><td>' + a.email + '</td><td>' + (a.name || '—') + '</td><td>' + a.points + '</td>' +
+      '<td>' + a.referrals_sent + '</td><td>' + a.referrals_verified + '</td><td>' + a.referrals_converted + '</td>' +
+      '<td>' + new Date(a.created_at * 1000).toLocaleDateString() + '</td></tr>';
+  }).join('');
+  var accountsEmpty = accountsData.accounts.length ? '' : '<p class="muted">No referral accounts yet.</p>';
+
+  var statusBadgeClass = { invited: 'unused', verified: '', converted: 'redeemed' };
+  var referralRows = referralsData.referrals.map(function (r) {
+    return '<tr><td>' + r.referrer_email + '</td><td>' + (r.referred_name || '—') + '</td><td>' + r.referred_email + '</td>' +
+      '<td><span class="badge ' + (statusBadgeClass[r.status] || '') + '">' + r.status + '</span></td>' +
+      '<td>' + new Date(r.created_at * 1000).toLocaleDateString() + '</td>' +
+      '<td>' + (r.verified_at ? new Date(r.verified_at * 1000).toLocaleDateString() : '—') + '</td>' +
+      '<td>' + (r.converted_at ? new Date(r.converted_at * 1000).toLocaleDateString() : '—') + '</td></tr>';
+  }).join('');
+  var referralsEmpty = referralsData.referrals.length ? '' : '<p class="muted">No referrals yet.</p>';
+
+  appEl.innerHTML = renderTabs('points') +
+    '<div class="card">' +
+    '<form data-act="adjust-points" class="generate-form">' +
+    '<input type="email" name="accountEmail" placeholder="account email" required>' +
+    '<input type="number" name="delta" placeholder="+/- points" required>' +
+    '<input type="text" name="reason" placeholder="reason" required>' +
+    '<button class="btn-primary" type="submit">Adjust</button>' +
+    '</form></div>' +
+    '<h3>Accounts</h3>' + accountsEmpty +
+    '<table><thead><tr><th>Email</th><th>Name</th><th>Points</th><th>Sent</th><th>Verified</th><th>Converted</th><th>Joined</th></tr></thead>' +
+    '<tbody>' + accountRows + '</tbody></table>' +
+    '<h3>Referral log</h3>' + referralsEmpty +
+    '<table><thead><tr><th>Referrer</th><th>Referred name</th><th>Referred email</th><th>Status</th><th>Created</th><th>Verified</th><th>Converted</th></tr></thead>' +
+    '<tbody>' + referralRows + '</tbody></table>';
 }
 
 // ---- Routing + delegated events --------------------------------------
@@ -148,6 +225,7 @@ function route() {
   if (view === 'codes') renderCodes();
   else if (view === 'questions') renderQuestions();
   else if (view === 'stats') renderStats();
+  else if (view === 'points') renderPoints();
   else if (view === 'settings') renderSettings();
   else renderCodes();
 }
@@ -167,6 +245,22 @@ appEl.addEventListener('submit', async function (e) {
       },
     });
     renderCodes();
+  } else if (act === 'adjust-points') {
+    e.preventDefault();
+    var af = e.target;
+    var delta = Number(af.delta.value);
+    if (!delta || isNaN(delta)) { alert('Enter a non-zero points amount (positive or negative).'); return; }
+    try {
+      await apiFetch('/console/accounts/adjust-points', {
+        method: 'POST',
+        body: { email: af.accountEmail.value.trim(), delta: delta, reason: af.reason.value.trim() },
+      });
+      renderPoints();
+    } catch (err) {
+      alert(err.data && err.data.error === 'account_not_found'
+        ? 'No account found for that email — they may not have referred anyone yet.'
+        : 'Could not adjust points. Try again.');
+    }
   }
 });
 
@@ -191,6 +285,28 @@ appEl.addEventListener('click', async function (e) {
     var dollars = parseFloat(input.value);
     if (isNaN(dollars) || dollars < 0) { alert('Enter a valid price.'); return; }
     await apiFetch('/console/pricing', { method: 'POST', body: { examType: examType, priceCents: Math.round(dollars * 100) } });
+    renderSettings();
+  } else if (act === 'save-point-rule') {
+    var taskKey = el.getAttribute('data-task');
+    var label = el.getAttribute('data-label');
+    var pointsInput = document.querySelector('.rule-points-input[data-task="' + taskKey + '"]');
+    var activeInput = document.querySelector('.rule-active-input[data-task="' + taskKey + '"]');
+    var pointsVal = parseInt(pointsInput.value, 10);
+    if (isNaN(pointsVal) || pointsVal < 0) { alert('Enter a valid points value.'); return; }
+    await apiFetch('/console/point-rules', {
+      method: 'POST',
+      body: { taskKey: taskKey, label: label, points: pointsVal, active: activeInput.checked },
+    });
+    renderSettings();
+  } else if (act === 'save-points-required') {
+    var examTypeReq = el.getAttribute('data-exam');
+    var reqInput = document.querySelector('.points-required-input[data-exam="' + examTypeReq + '"]');
+    var reqVal = parseInt(reqInput.value, 10);
+    if (isNaN(reqVal) || reqVal < 0) { alert('Enter a valid points value.'); return; }
+    await apiFetch('/console/exam-points-required', {
+      method: 'POST',
+      body: { examType: examTypeReq, pointsRequired: reqVal },
+    });
     renderSettings();
   } else if (act === 'toggle-theme') {
     var nextTheme = el.getAttribute('data-next');
