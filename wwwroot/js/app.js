@@ -153,8 +153,9 @@ async function renderSettings() {
   var results = await Promise.all([
     apiFetch('/console/pricing'),
     apiFetch('/console/point-rules'),
+    apiFetch('/console/settings'),
   ]);
-  var pricingData = results[0], pointRulesData = results[1];
+  var pricingData = results[0], pointRulesData = results[1], settingsData = results[2];
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
@@ -179,6 +180,16 @@ async function renderSettings() {
       '</div>';
   }).join('');
 
+  var bySetting = {};
+  settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
+  var minChargeCents = parseInt(bySetting.min_paypal_charge_cents, 10);
+  var minChargeDollars = Number.isFinite(minChargeCents) ? (minChargeCents / 100).toFixed(2) : '1.00';
+  var minChargeRow = '<div class="card price-row">' +
+    '<span class="price-row-label">Minimum PayPal charge</span>' +
+    '<input type="number" step="0.01" min="0" class="min-charge-input" value="' + minChargeDollars + '" placeholder="1.00">' +
+    '<button class="btn-primary btn-sm" data-act="save-min-charge">Save</button>' +
+    '</div>';
+
   appEl.innerHTML = renderTabs('settings') +
     '<h3>Course pricing</h3>' +
     '<p class="muted">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
@@ -186,7 +197,11 @@ async function renderSettings() {
     '<h3>Point rules</h3>' +
     '<p class="muted">How many points each referral task awards (1 point = 1 cent, so these read directly ' +
     'as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p>' +
-    ruleRows;
+    ruleRows +
+    '<h3>Points discount floor</h3>' +
+    '<p class="muted">A points discount can never leave less than this payable through PayPal (points fully ' +
+    'covering a course still redeem free with zero cash, no PayPal involved, so this doesn\'t affect that).</p>' +
+    minChargeRow;
 }
 
 // ---- Points (accounts, manual adjustments, referral log) ------------------
@@ -318,6 +333,15 @@ appEl.addEventListener('click', async function (e) {
     await apiFetch('/console/point-rules', {
       method: 'POST',
       body: { taskKey: taskKey, label: label, points: pointsVal, active: activeInput.checked },
+    });
+    renderSettings();
+  } else if (act === 'save-min-charge') {
+    var minChargeInput = document.querySelector('.min-charge-input');
+    var minChargeDollarsVal = parseFloat(minChargeInput.value);
+    if (isNaN(minChargeDollarsVal) || minChargeDollarsVal < 0) { alert('Enter a valid amount.'); return; }
+    await apiFetch('/console/settings', {
+      method: 'POST',
+      body: { key: 'min_paypal_charge_cents', value: String(Math.round(minChargeDollarsVal * 100)) },
     });
     renderSettings();
   } else if (act === 'toggle-theme') {
