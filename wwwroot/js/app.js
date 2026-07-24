@@ -69,6 +69,8 @@ async function renderCodes() {
 
 var EXAM_TYPES = [['notary', 'California Notary'], ['dre', 'California DRE'], ['mlo', 'National MLO']];
 var currentQuestionsExamType = 'notary';
+var currentQuestionsTopic = null; // null = "All"
+var questionsCache = []; // full (unfiltered-by-topic) list for the current exam type
 
 function renderExamSubTabs() {
   return '<nav class="tabs sub-tabs">' + EXAM_TYPES.map(function (t) {
@@ -77,17 +79,45 @@ function renderExamSubTabs() {
   }).join('') + '</nav>';
 }
 
+function distinctTopics(questions) {
+  var seen = {};
+  var topics = [];
+  questions.forEach(function (q) {
+    if (!seen[q.topic]) { seen[q.topic] = true; topics.push(q.topic); }
+  });
+  topics.sort();
+  return topics;
+}
+
+function renderTopicSubTabs(topics) {
+  var tabs = [null].concat(topics);
+  return '<nav class="tabs sub-tabs topic-sub-tabs">' + tabs.map(function (t) {
+    return '<a href="#" data-act="select-topic-tab" data-topic="' + (t === null ? '' : t) + '"' +
+      (t === currentQuestionsTopic ? ' aria-current="page"' : '') + '>' + (t === null ? 'All' : t) + '</a>';
+  }).join('') + '</nav>';
+}
+
 async function renderQuestions() {
   appEl.innerHTML = renderTabs('questions') + renderExamSubTabs() + '<p>Loading…</p>';
   var data = await apiFetch('/console/questions?examType=' + currentQuestionsExamType);
-  var rows = data.questions.map(function (q) {
+  questionsCache = data.questions;
+  drawQuestionsTable();
+}
+
+function drawQuestionsTable() {
+  var topics = distinctTopics(questionsCache);
+  var filtered = currentQuestionsTopic
+    ? questionsCache.filter(function (q) { return q.topic === currentQuestionsTopic; })
+    : questionsCache;
+
+  var rows = filtered.map(function (q) {
     return '<tr><td>' + q.topic + '</td><td>' + q.question.slice(0, 80) + '</td>' +
       '<td>' + q.weight + '</td><td><span class="badge">' + (q.source || '—') + '</span></td>' +
       '<td><button class="btn" data-act="delete-question" data-id="' + q.id + '">Delete</button></td></tr>';
   }).join('');
-  var empty = data.questions.length ? '' : '<p class="muted">No questions yet for this exam.</p>';
+  var empty = filtered.length ? '' : '<p class="muted">No questions yet for this exam/topic.</p>';
 
-  appEl.innerHTML = renderTabs('questions') + renderExamSubTabs() +
+  appEl.innerHTML = renderTabs('questions') + renderExamSubTabs() + renderTopicSubTabs(topics) +
     '<div class="card"><button class="btn-primary" data-act="import-questions">Import JSON…</button> ' +
     '<input type="file" id="import-file" class="hidden-file-input" accept="application/json"></div>' +
     empty +
@@ -262,7 +292,11 @@ appEl.addEventListener('click', async function (e) {
     document.getElementById('import-file').click();
   } else if (act === 'select-exam-tab') {
     currentQuestionsExamType = el.getAttribute('data-exam');
+    currentQuestionsTopic = null; // topics differ per exam, so reset the topic filter
     renderQuestions();
+  } else if (act === 'select-topic-tab') {
+    currentQuestionsTopic = el.getAttribute('data-topic') || null;
+    drawQuestionsTable();
   } else if (act === 'save-price') {
     var examType = el.getAttribute('data-exam');
     var input = document.querySelector('.price-input[data-exam="' + examType + '"]');
