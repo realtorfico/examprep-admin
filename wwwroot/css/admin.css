@@ -98,5 +98,5 @@ input, select {
 
 .price-row { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; }
 .price-row-label { flex: 1; font-weight: 600; min-width: 12rem; }
-.price-input, .rule-points-input, .points-required-input { width: 7rem; }
+.price-input, .rule-points-input { width: 7rem; }
 .rule-active-label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; white-space: nowrap; }

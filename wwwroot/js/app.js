@@ -123,9 +123,8 @@ async function renderSettings() {
   var results = await Promise.all([
     apiFetch('/console/pricing'),
     apiFetch('/console/point-rules'),
-    apiFetch('/console/exam-points-required'),
   ]);
-  var pricingData = results[0], pointRulesData = results[1], pointsRequiredData = results[2];
+  var pricingData = results[0], pointRulesData = results[1];
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
@@ -150,29 +149,14 @@ async function renderSettings() {
       '</div>';
   }).join('');
 
-  var byExamPoints = {};
-  pointsRequiredData.examPointsRequired.forEach(function (p) { byExamPoints[p.exam_type] = p; });
-  var pointsRequiredRows = EXAM_TYPES.map(function (t) {
-    var examType = t[0], label = t[1];
-    var p = byExamPoints[examType];
-    var pts = p ? p.points_required : '';
-    return '<div class="card price-row">' +
-      '<span class="price-row-label">' + label + '</span>' +
-      '<input type="number" min="0" class="points-required-input" data-exam="' + examType + '" value="' + pts + '" placeholder="points needed">' +
-      '<button class="btn-primary btn-sm" data-act="save-points-required" data-exam="' + examType + '">Save</button>' +
-      '</div>';
-  }).join('');
-
   appEl.innerHTML = renderTabs('settings') +
     '<h3>Course pricing</h3>' +
     '<p class="muted">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
     priceRows +
     '<h3>Point rules</h3>' +
-    '<p class="muted">How many points each referral task awards. Uncheck Active to stop awarding it without losing history.</p>' +
-    ruleRows +
-    '<h3>Points required per course</h3>' +
-    '<p class="muted">How many points a buyer needs to redeem each course for free.</p>' +
-    pointsRequiredRows;
+    '<p class="muted">How many points each referral task awards (1 point = 1 cent, so these read directly ' +
+    'as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p>' +
+    ruleRows;
 }
 
 // ---- Points (accounts, manual adjustments, referral log) ------------------
@@ -296,16 +280,6 @@ appEl.addEventListener('click', async function (e) {
     await apiFetch('/console/point-rules', {
       method: 'POST',
       body: { taskKey: taskKey, label: label, points: pointsVal, active: activeInput.checked },
-    });
-    renderSettings();
-  } else if (act === 'save-points-required') {
-    var examTypeReq = el.getAttribute('data-exam');
-    var reqInput = document.querySelector('.points-required-input[data-exam="' + examTypeReq + '"]');
-    var reqVal = parseInt(reqInput.value, 10);
-    if (isNaN(reqVal) || reqVal < 0) { alert('Enter a valid points value.'); return; }
-    await apiFetch('/console/exam-points-required', {
-      method: 'POST',
-      body: { examType: examTypeReq, pointsRequired: reqVal },
     });
     renderSettings();
   } else if (act === 'toggle-theme') {
