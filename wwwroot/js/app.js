@@ -33,7 +33,7 @@ function renderTopControls() {
 }
 
 function renderTabs(active) {
-  var tabs = [['codes', 'Codes'], ['questions', 'Questions'], ['stats', 'Stats'], ['points', 'Points'], ['settings', 'Settings']];
+  var tabs = [['codes', 'Codes'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['points', 'Points'], ['settings', 'Settings']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
