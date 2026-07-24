@@ -281,6 +281,10 @@ appEl.addEventListener('submit', async function (e) {
 appEl.addEventListener('click', async function (e) {
   var el = e.target.closest && e.target.closest('[data-act]');
   if (!el) return;
+  // Sub-tab links are real <a href="#"> (for the pill styling), but are handled entirely here --
+  // without this, the browser's own navigation to "#" clears location.hash and the global router
+  // falls back to the Codes tab, undoing the tab switch this handler just made.
+  if (el.tagName === 'A' && el.getAttribute('href') === '#') e.preventDefault();
   var act = el.getAttribute('data-act');
   if (act === 'revoke-code') {
     await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: el.getAttribute('data-code') } });
