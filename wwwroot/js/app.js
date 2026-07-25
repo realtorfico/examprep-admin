@@ -33,7 +33,7 @@ function renderTopControls() {
 }
 
 function renderTabs(active) {
-  var tabs = [['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['questions', 'Question Bank'], ['stats', 'Stats']];
+  var tabs = [['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -317,6 +317,50 @@ async function renderPoints() {
   drawReferralsTable();
 }
 
+// ---- Refund claims ----------------------------------------------------
+
+async function renderRefunds() {
+  appEl.innerHTML = renderTabs('refunds') + '<p>Loading…</p>';
+  var data = await apiFetch('/console/refund-claims');
+  var claimTypeLabel = { unconditional_7day: '7-Day', exam_failure_50pct: 'Exam Failure 50%' };
+  var statusBadgeClass = { pending: '', approved: '', denied: 'revoked', refunded: 'redeemed' };
+  var rows = data.claims.map(function (c) {
+    var details = [];
+    if (c.exam_date) details.push('Exam: ' + c.exam_date);
+    if (c.confirmation_note) details.push('Conf: ' + c.confirmation_note);
+    if (c.notes) details.push(c.notes);
+    var actions;
+    if (c.status === 'pending') {
+      actions =
+        '<input type="text" class="refund-admin-notes-input" data-claim-id="' + c.id + '" placeholder="admin notes (optional)">' +
+        '<button class="btn" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="approved">Approve</button>' +
+        '<button class="btn" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="denied">Deny</button>';
+    } else if (c.status === 'approved') {
+      actions =
+        '<input type="text" class="refund-admin-notes-input" data-claim-id="' + c.id + '" placeholder="admin notes (optional)">' +
+        '<button class="btn" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="refunded">Mark Refunded</button>';
+    } else {
+      actions = c.reviewed_by ? ('Reviewed by ' + c.reviewed_by) : '—';
+    }
+    return '<tr><td>' + c.code + '</td><td>' + c.email + '</td><td>' + (claimTypeLabel[c.claim_type] || c.claim_type) + '</td>' +
+      '<td>$' + (c.refund_cents / 100).toFixed(2) + '</td>' +
+      '<td><span class="badge ' + (statusBadgeClass[c.status] || '') + '">' + c.status + '</span></td>' +
+      '<td>' + (details.join('<br>') || '—') + '</td>' +
+      '<td>' + new Date(c.created_at * 1000).toLocaleDateString() + '</td>' +
+      '<td class="refund-actions-cell">' + actions + '</td></tr>';
+  }).join('');
+  var empty = data.claims.length ? '' : '<p class="muted">No refund claims yet.</p>';
+
+  appEl.innerHTML = renderTabs('refunds') +
+    '<p class="muted">Approve or deny each claim after review, then process the actual refund in PayPal yourself ' +
+    'and mark it Refunded here. Marking a 7-Day claim Refunded automatically revokes the code.</p>' +
+    empty +
+    (data.claims.length
+      ? '<table><thead><tr><th>Code</th><th>Email</th><th>Type</th><th>Amount</th><th>Status</th><th>Details</th><th>Created</th><th>Actions</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table>'
+      : '');
+}
+
 // ---- Routing + delegated events --------------------------------------
 
 function route() {
@@ -326,6 +370,7 @@ function route() {
   else if (view === 'stats') renderStats();
   else if (view === 'points') renderPoints();
   else if (view === 'settings') renderSettings();
+  else if (view === 'refunds') renderRefunds();
   else renderCodes();
 }
 window.addEventListener('hashchange', route);
@@ -374,6 +419,15 @@ appEl.addEventListener('click', async function (e) {
   if (act === 'revoke-code') {
     await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: el.getAttribute('data-code') } });
     renderCodes();
+  } else if (act === 'review-refund-claim') {
+    var claimId = el.getAttribute('data-claim-id');
+    var reviewStatus = el.getAttribute('data-status');
+    var notesInput = document.querySelector('.refund-admin-notes-input[data-claim-id="' + claimId + '"]');
+    await apiFetch('/console/refund-claims/review', {
+      method: 'POST',
+      body: { claimId: claimId, status: reviewStatus, adminNotes: notesInput ? notesInput.value.trim() || undefined : undefined },
+    });
+    renderRefunds();
   } else if (act === 'delete-question') {
     await apiFetch('/console/questions/delete', { method: 'POST', body: { id: el.getAttribute('data-id') } });
     renderQuestions();
