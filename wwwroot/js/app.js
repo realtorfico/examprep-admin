@@ -190,6 +190,13 @@ async function renderSettings() {
     '<button class="btn-primary btn-sm" data-act="save-min-charge">Save</button>' +
     '</div>';
 
+  var alertEmail = bySetting.admin_alert_email || '';
+  var alertEmailRow = '<div class="card price-row">' +
+    '<span class="price-row-label">Alert email</span>' +
+    '<input type="email" class="alert-email-input" value="' + alertEmail + '" placeholder="you@example.com" style="flex:1;min-width:14rem;">' +
+    '<button class="btn-primary btn-sm" data-act="save-alert-email">Save</button>' +
+    '</div>';
+
   appEl.innerHTML = renderTabs('settings') +
     '<h3>Course pricing</h3>' +
     '<p class="muted">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
@@ -201,7 +208,11 @@ async function renderSettings() {
     '<h3>Points discount floor</h3>' +
     '<p class="muted">A points discount can never leave less than this payable through PayPal (points fully ' +
     'covering a course still redeem free with zero cash, no PayPal involved, so this doesn\'t affect that).</p>' +
-    minChargeRow;
+    minChargeRow +
+    '<h3>Activity alerts</h3>' +
+    '<p class="muted">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
+    'buys a course. Leave blank to turn alerts off.</p>' +
+    alertEmailRow;
 }
 
 // ---- Points (accounts, manual adjustments, referral log) ------------------
@@ -342,6 +353,14 @@ appEl.addEventListener('click', async function (e) {
     await apiFetch('/console/settings', {
       method: 'POST',
       body: { key: 'min_paypal_charge_cents', value: String(Math.round(minChargeDollarsVal * 100)) },
+    });
+    renderSettings();
+  } else if (act === 'save-alert-email') {
+    var alertEmailInput = document.querySelector('.alert-email-input');
+    var alertEmailVal = alertEmailInput.value.trim();
+    await apiFetch('/console/settings', {
+      method: 'POST',
+      body: { key: 'admin_alert_email', value: alertEmailVal },
     });
     renderSettings();
   } else if (act === 'toggle-theme') {
