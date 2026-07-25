@@ -217,30 +217,89 @@ async function renderSettings() {
 
 // ---- Points (accounts, manual adjustments, referral log) ------------------
 
+var pointsAccountsCache = [];
+var pointsReferralsCache = [];
+var accountsSort = { key: 'points', dir: -1 }; // matches the old default: highest points first
+var referralsSort = { key: 'created_at', dir: -1 }; // matches the old default: newest first
+var statusBadgeClass = { invited: 'unused', verified: '', converted: 'redeemed' };
+
+var ACCOUNTS_NUMERIC_KEYS = new Set(['points', 'referrals_sent', 'referrals_verified', 'referrals_converted', 'created_at']);
+var ACCOUNTS_COLUMNS = [
+  ['email', 'Email'], ['name', 'Name'], ['points', 'Points'], ['referrals_sent', 'Sent'],
+  ['referrals_verified', 'Verified'], ['referrals_converted', 'Converted'], ['created_at', 'Joined'],
+];
+var REFERRALS_NUMERIC_KEYS = new Set(['created_at', 'verified_at', 'converted_at']);
+var REFERRALS_COLUMNS = [
+  ['referrer_email', 'Referrer'], ['referrer_name', 'Referrer Name'], ['referred_name', 'Referred Name'],
+  ['referred_email', 'Referred Email'], ['status', 'Status'], ['created_at', 'Created'],
+  ['verified_at', 'Verified'], ['converted_at', 'Converted'],
+];
+
+function sortTableRows(rows, sortState, numericKeys) {
+  var sorted = rows.slice();
+  var key = sortState.key, dir = sortState.dir;
+  sorted.sort(function (a, b) {
+    var av = a[key], bv = b[key];
+    if (numericKeys.has(key)) {
+      av = av == null ? -Infinity : av;
+      bv = bv == null ? -Infinity : bv;
+      return (av - bv) * dir;
+    }
+    av = (av == null ? '' : String(av)).toLowerCase();
+    bv = (bv == null ? '' : String(bv)).toLowerCase();
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+  return sorted;
+}
+
+function sortableHeaderRow(columns, sortState, act) {
+  return '<tr>' + columns.map(function (c) {
+    var indicator = sortState.key === c[0] ? (sortState.dir === 1 ? ' ▲' : ' ▼') : '';
+    return '<th data-act="' + act + '" data-key="' + c[0] + '">' + c[1] + indicator + '</th>';
+  }).join('') + '</tr>';
+}
+
+function drawAccountsTable() {
+  var container = document.getElementById('accounts-table-container');
+  if (!container) return;
+  var rows = sortTableRows(pointsAccountsCache, accountsSort, ACCOUNTS_NUMERIC_KEYS);
+  var body = rows.map(function (a) {
+    return '<tr><td>' + a.email + '</td><td>' + (a.name || '—') + '</td><td>' + a.points + '</td>' +
+      '<td>' + a.referrals_sent + '</td><td>' + a.referrals_verified + '</td><td>' + a.referrals_converted + '</td>' +
+      '<td>' + new Date(a.created_at * 1000).toLocaleDateString() + '</td></tr>';
+  }).join('');
+  container.innerHTML = '<table><thead>' + sortableHeaderRow(ACCOUNTS_COLUMNS, accountsSort, 'sort-accounts') +
+    '</thead><tbody>' + body + '</tbody></table>';
+}
+
+function drawReferralsTable() {
+  var container = document.getElementById('referrals-table-container');
+  if (!container) return;
+  var rows = sortTableRows(pointsReferralsCache, referralsSort, REFERRALS_NUMERIC_KEYS);
+  var body = rows.map(function (r) {
+    return '<tr><td>' + r.referrer_email + '</td><td>' + (r.referrer_name || '—') + '</td><td>' + (r.referred_name || '—') + '</td><td>' + r.referred_email + '</td>' +
+      '<td><span class="badge ' + (statusBadgeClass[r.status] || '') + '">' + r.status + '</span></td>' +
+      '<td>' + new Date(r.created_at * 1000).toLocaleDateString() + '</td>' +
+      '<td>' + (r.verified_at ? new Date(r.verified_at * 1000).toLocaleDateString() : '—') + '</td>' +
+      '<td>' + (r.converted_at ? new Date(r.converted_at * 1000).toLocaleDateString() : '—') + '</td></tr>';
+  }).join('');
+  container.innerHTML = '<table><thead>' + sortableHeaderRow(REFERRALS_COLUMNS, referralsSort, 'sort-referrals') +
+    '</thead><tbody>' + body + '</tbody></table>';
+}
+
 async function renderPoints() {
   appEl.innerHTML = renderTabs('points') + '<p>Loading…</p>';
   var results = await Promise.all([
     apiFetch('/console/accounts'),
     apiFetch('/console/referrals'),
   ]);
-  var accountsData = results[0], referralsData = results[1];
+  pointsAccountsCache = results[0].accounts;
+  pointsReferralsCache = results[1].referrals;
 
-  var accountRows = accountsData.accounts.map(function (a) {
-    return '<tr><td>' + a.email + '</td><td>' + (a.name || '—') + '</td><td>' + a.points + '</td>' +
-      '<td>' + a.referrals_sent + '</td><td>' + a.referrals_verified + '</td><td>' + a.referrals_converted + '</td>' +
-      '<td>' + new Date(a.created_at * 1000).toLocaleDateString() + '</td></tr>';
-  }).join('');
-  var accountsEmpty = accountsData.accounts.length ? '' : '<p class="muted">No referral accounts yet.</p>';
-
-  var statusBadgeClass = { invited: 'unused', verified: '', converted: 'redeemed' };
-  var referralRows = referralsData.referrals.map(function (r) {
-    return '<tr><td>' + r.referrer_email + '</td><td>' + (r.referred_name || '—') + '</td><td>' + r.referred_email + '</td>' +
-      '<td><span class="badge ' + (statusBadgeClass[r.status] || '') + '">' + r.status + '</span></td>' +
-      '<td>' + new Date(r.created_at * 1000).toLocaleDateString() + '</td>' +
-      '<td>' + (r.verified_at ? new Date(r.verified_at * 1000).toLocaleDateString() : '—') + '</td>' +
-      '<td>' + (r.converted_at ? new Date(r.converted_at * 1000).toLocaleDateString() : '—') + '</td></tr>';
-  }).join('');
-  var referralsEmpty = referralsData.referrals.length ? '' : '<p class="muted">No referrals yet.</p>';
+  var accountsEmpty = pointsAccountsCache.length ? '' : '<p class="muted">No referral accounts yet.</p>';
+  var referralsEmpty = pointsReferralsCache.length ? '' : '<p class="muted">No referrals yet.</p>';
 
   appEl.innerHTML = renderTabs('points') +
     '<div class="card">' +
@@ -251,11 +310,11 @@ async function renderPoints() {
     '<button class="btn-primary" type="submit">Adjust</button>' +
     '</form></div>' +
     '<h3>Accounts</h3>' + accountsEmpty +
-    '<table><thead><tr><th>Email</th><th>Name</th><th>Points</th><th>Sent</th><th>Verified</th><th>Converted</th><th>Joined</th></tr></thead>' +
-    '<tbody>' + accountRows + '</tbody></table>' +
+    '<div id="accounts-table-container"></div>' +
     '<h3>Referral log</h3>' + referralsEmpty +
-    '<table><thead><tr><th>Referrer</th><th>Referred name</th><th>Referred email</th><th>Status</th><th>Created</th><th>Verified</th><th>Converted</th></tr></thead>' +
-    '<tbody>' + referralRows + '</tbody></table>';
+    '<div id="referrals-table-container"></div>';
+  drawAccountsTable();
+  drawReferralsTable();
 }
 
 // ---- Routing + delegated events --------------------------------------
@@ -363,6 +422,16 @@ appEl.addEventListener('click', async function (e) {
       body: { key: 'admin_alert_email', value: alertEmailVal },
     });
     renderSettings();
+  } else if (act === 'sort-accounts') {
+    var accountsSortKey = el.getAttribute('data-key');
+    if (accountsSort.key === accountsSortKey) accountsSort.dir *= -1;
+    else { accountsSort.key = accountsSortKey; accountsSort.dir = 1; }
+    drawAccountsTable();
+  } else if (act === 'sort-referrals') {
+    var referralsSortKey = el.getAttribute('data-key');
+    if (referralsSort.key === referralsSortKey) referralsSort.dir *= -1;
+    else { referralsSort.key = referralsSortKey; referralsSort.dir = 1; }
+    drawReferralsTable();
   } else if (act === 'toggle-theme') {
     var nextTheme = el.getAttribute('data-next');
     var local = loadLocalPrefs();
