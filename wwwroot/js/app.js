@@ -147,8 +147,10 @@ async function renderStats() {
 
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
-    '<h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table>' +
-    '<h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table>' +
+    '<div class="stats-grid">' +
+    '<div class="stats-column"><h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table></div>' +
+    '<div class="stats-column"><h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table></div>' +
+    '</div>' +
     '<h3>Resource consumption</h3>' +
     '<p class="muted page-intro-text">What each user has opened/watched, most recent activity first. Email shown only when the ' +
     'buyer provided one at purchase. Capped at the 1000 most recent rows.</p>' +
