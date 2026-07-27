@@ -27,8 +27,7 @@ function renderTopControls() {
     '<div class="control-group"><button class="btn-secondary btn-sm" data-act="toggle-theme" data-next="' + nextTheme + '">' +
     (nextTheme === 'dark' ? '🌙 Dark' : '☀️ Light') + '</button></div>' +
     '<div class="control-group"><span class="muted" style="font-size:0.8rem">Font:</span>' +
-    '<button class="btn-secondary btn-sm" data-act="font-down">A-</button>' +
-    '<button class="btn-secondary btn-sm" data-act="font-up">A+</button></div>' +
+    '<div class="font-size-pill"><button data-act="font-down">A-</button><button data-act="font-up">A+</button></div></div>' +
     '</div>';
 }
 
@@ -199,18 +198,18 @@ async function renderSettings() {
 
   appEl.innerHTML = renderTabs('settings') +
     '<h3>Course pricing</h3>' +
-    '<p class="muted">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
+    '<p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
     priceRows +
     '<h3>Point rules</h3>' +
-    '<p class="muted">How many points each referral task awards (1 point = 1 cent, so these read directly ' +
+    '<p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read directly ' +
     'as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p>' +
     ruleRows +
     '<h3>Points discount floor</h3>' +
-    '<p class="muted">A points discount can never leave less than this payable through PayPal (points fully ' +
+    '<p class="muted page-intro-text">A points discount can never leave less than this payable through PayPal (points fully ' +
     'covering a course still redeem free with zero cash, no PayPal involved, so this doesn\'t affect that).</p>' +
     minChargeRow +
     '<h3>Activity alerts</h3>' +
-    '<p class="muted">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
+    '<p class="muted page-intro-text">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
     'buys a course. Leave blank to turn alerts off.</p>' +
     alertEmailRow;
 }
@@ -333,12 +332,12 @@ async function renderRefunds() {
     if (c.status === 'pending') {
       actions =
         '<input type="text" class="refund-admin-notes-input" data-claim-id="' + c.id + '" placeholder="admin notes (optional)">' +
-        '<button class="btn" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="approved">Approve</button>' +
-        '<button class="btn" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="denied">Deny</button>';
+        '<button class="btn btn-approve" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="approved">Approve</button>' +
+        '<button class="btn btn-deny" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="denied">Deny</button>';
     } else if (c.status === 'approved') {
       actions =
         '<input type="text" class="refund-admin-notes-input" data-claim-id="' + c.id + '" placeholder="admin notes (optional)">' +
-        '<button class="btn" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="refunded">Mark Refunded</button>';
+        '<button class="btn btn-primary" data-act="review-refund-claim" data-claim-id="' + c.id + '" data-status="refunded">Mark Refunded</button>';
     } else {
       actions = c.reviewed_by ? ('Reviewed by ' + c.reviewed_by) : '—';
     }
@@ -352,7 +351,7 @@ async function renderRefunds() {
   var empty = data.claims.length ? '' : '<p class="muted">No refund claims yet.</p>';
 
   appEl.innerHTML = renderTabs('refunds') +
-    '<p class="muted">Approve or deny each claim after review, then process the actual refund in PayPal yourself ' +
+    '<p class="muted page-intro-text">Approve or deny each claim after review, then process the actual refund in PayPal yourself ' +
     'and mark it Refunded here. Marking a 7-Day claim Refunded automatically revokes the code.</p>' +
     empty +
     (data.claims.length

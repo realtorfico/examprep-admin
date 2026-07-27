@@ -1,9 +1,10 @@
 :root {
-  --bg: #0f172a;
-  --card: #1e293b;
-  --accent: #38bdf8;
-  --accent-hover: #0284c7;
-  --fg: #f8fafc;
+  --bg: #0b0f17;
+  --card: #161f30;
+  --surface-2: #212c4a;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --fg: #ffffff;
   --muted: #94a3b8;
   --correct: #22c55e;
   --incorrect: #ef4444;
@@ -13,8 +14,9 @@
 :root[data-theme="light"] {
   --bg: #f8fafc;
   --card: #ffffff;
-  --accent: #0284c7;
-  --accent-hover: #0369a1;
+  --surface-2: #eef1f8;
+  --accent: #4338ca;
+  --accent-hover: #3730a3;
   --fg: #0f172a;
   --muted: #64748b;
   --correct: #16a34a;
@@ -23,7 +25,7 @@
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #f8fafc; --card: #ffffff; --accent: #0284c7; --accent-hover: #0369a1;
+    --bg: #f8fafc; --card: #ffffff; --surface-2: #eef1f8; --accent: #4338ca; --accent-hover: #3730a3;
     --fg: #0f172a; --muted: #64748b; --correct: #16a34a; --incorrect: #dc2626; --border: #cbd5e1;
   }
 }
@@ -54,48 +56,72 @@ h1, h2, h3 { line-height: 1.25; margin: 0; }
 }
 .control-group { display: flex; gap: 0.5rem; align-items: center; }
 
-nav.tabs { display: flex; gap: 1rem; flex-wrap: wrap; }
-nav.tabs a { color: var(--muted); text-decoration: none; padding: 0.3rem 0.1rem; }
-nav.tabs a[aria-current="page"] { color: var(--fg); border-bottom: 2px solid var(--accent); }
+nav.tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+nav.tabs a {
+  color: var(--muted); text-decoration: none; padding: 0.4rem 0.85rem; font-size: 0.85rem;
+  font-weight: 600; border-radius: 999px; background: var(--surface-2);
+  transition: background-color 0.15s, color 0.15s;
+}
+nav.tabs a:hover { color: var(--fg); }
+nav.tabs a[aria-current="page"] { color: #fff; background: var(--accent); }
 nav.sub-tabs { gap: 0.5rem; row-gap: 0.5rem; margin-top: -0.25rem; }
 .topic-sub-tabs { margin-top: -0.75rem; }
 nav.sub-tabs a {
-  font-size: 0.85rem; background: color-mix(in srgb, var(--fg) 4%, transparent);
+  font-size: 0.85rem; background: var(--surface-2);
   border: 1px solid var(--border); border-radius: 999px; padding: 0.3rem 0.75rem;
   white-space: nowrap;
 }
 nav.sub-tabs a[aria-current="page"] {
-  background: var(--accent); color: #0f172a; border-color: var(--accent); font-weight: 600;
+  background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600;
 }
 
-table { width: 100%; border-collapse: collapse; background: color-mix(in srgb, var(--fg) 2%, transparent); border-radius: 10px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; background: var(--surface-2); border-radius: 10px; overflow: hidden; }
 th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
 th[data-act="sort-accounts"], th[data-act="sort-referrals"] { cursor: pointer; user-select: none; white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
 
 .card {
-  background: color-mix(in srgb, var(--fg) 2%, transparent); border: 1px solid var(--border);
+  background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 12px; padding: 1.1rem;
 }
+.page-intro-text { max-width: 65ch; line-height: 1.6; }
 
 button, .btn {
-  cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--fg);
+  cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--fg);
   border-radius: 8px; padding: 0.5rem 0.9rem; font-size: 0.9rem; font-family: inherit;
 }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #0f172a; font-weight: 600; }
-.btn-secondary { background: var(--border); color: var(--fg); border-color: var(--border); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn-secondary { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); filter: none; }
+.btn-approve { border-color: var(--correct); color: var(--correct); }
+.btn-approve:hover { background: color-mix(in srgb, var(--correct) 12%, transparent); }
+.btn-deny { border-color: var(--incorrect); color: var(--incorrect); }
+.btn-deny:hover { background: color-mix(in srgb, var(--incorrect) 12%, transparent); }
 .btn-sm { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
 button:hover, .btn:hover { filter: brightness(1.1); }
 
 input, select {
   padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid var(--border);
-  background: var(--bg); color: var(--fg); font-family: inherit;
+  background: var(--surface-2); color: var(--fg); font-family: inherit;
 }
+input::placeholder { color: var(--muted); opacity: 1; }
 
-.badge { font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--border); color: var(--muted); }
-.badge.revoked { background: color-mix(in srgb, var(--incorrect) 20%, var(--card)); color: var(--incorrect); }
-.badge.unused { background: color-mix(in srgb, var(--accent) 20%, var(--card)); color: var(--accent); }
-.badge.redeemed { background: color-mix(in srgb, var(--correct) 20%, var(--card)); color: var(--correct); }
+.font-size-pill { display: inline-flex; border: 1.5px solid var(--border); border-radius: 999px; overflow: hidden; }
+.font-size-pill button {
+  border: none; border-radius: 0; background: transparent; color: var(--fg);
+  padding: 0.4rem 0.7rem; font-size: 0.8rem;
+}
+.font-size-pill button:first-child { border-right: 1px solid var(--border); }
+.font-size-pill button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+
+.badge {
+  font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 999px; font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-hover);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.badge.revoked { background: color-mix(in srgb, var(--incorrect) 18%, transparent); color: var(--incorrect); border-color: color-mix(in srgb, var(--incorrect) 35%, transparent); }
+.badge.unused { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-hover); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.badge.redeemed { background: color-mix(in srgb, var(--correct) 18%, transparent); color: var(--correct); border-color: color-mix(in srgb, var(--correct) 35%, transparent); }
 
 .generate-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .expires-input { width: 11rem; }
