@@ -197,21 +197,31 @@ async function renderSettings() {
     '</div>';
 
   appEl.innerHTML = renderTabs('settings') +
+    '<div class="settings-grid">' +
+    '<div class="settings-column">' +
     '<h3>Course pricing</h3>' +
     '<p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
     priceRows +
+    '</div>' +
+    '<div class="settings-column">' +
     '<h3>Point rules</h3>' +
     '<p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read directly ' +
     'as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p>' +
     ruleRows +
+    '</div>' +
+    '<div class="settings-column">' +
     '<h3>Points discount floor</h3>' +
     '<p class="muted page-intro-text">A points discount can never leave less than this payable through PayPal (points fully ' +
     'covering a course still redeem free with zero cash, no PayPal involved, so this doesn\'t affect that).</p>' +
     minChargeRow +
+    '</div>' +
+    '<div class="settings-column">' +
     '<h3>Activity alerts</h3>' +
     '<p class="muted page-intro-text">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
     'buys a course. Leave blank to turn alerts off.</p>' +
-    alertEmailRow;
+    alertEmailRow +
+    '</div>' +
+    '</div>';
 }
 
 // ---- Points (accounts, manual adjustments, referral log) ------------------
