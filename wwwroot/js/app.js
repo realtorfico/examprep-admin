@@ -128,7 +128,8 @@ function drawQuestionsTable() {
 
 async function renderStats() {
   appEl.innerHTML = renderTabs('stats') + '<p>Loading…</p>';
-  var s = await apiFetch('/console/stats');
+  var results = await Promise.all([apiFetch('/console/stats'), apiFetch('/console/resource-progress')]);
+  var s = results[0], resourceProgress = results[1];
   var codeRows = s.codes.map(function (c) {
     return '<tr><td>' + c.exam_type + '</td><td>' + c.status + '</td><td>' + c.n + '</td></tr>';
   }).join('');
@@ -136,11 +137,26 @@ async function renderStats() {
     var pct = a.attempts ? Math.round((100 * a.correct) / a.attempts) : 0;
     return '<tr><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + pct + '%</td><td>' + a.attempts + '</td></tr>';
   }).join('');
+  var resourceRows = resourceProgress.items.map(function (r) {
+    var extent = (r.resource_type === 'audio' || r.resource_type === 'video') ? r.percent + '%' : (r.percent >= 100 ? 'Viewed' : '—');
+    return '<tr><td>' + (r.code || '—') + '</td><td>' + (r.buyer_email || '—') + '</td><td>' + r.exam_type + '</td>' +
+      '<td>' + r.resource_file + '</td><td>' + r.resource_type + '</td><td>' + extent + '</td><td>' + r.times_opened + '</td>' +
+      '<td>' + new Date(r.last_opened_at * 1000).toLocaleString() + '</td></tr>';
+  }).join('');
+  var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
 
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
     '<h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table>' +
-    '<h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table>';
+    '<h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table>' +
+    '<h3>Resource consumption</h3>' +
+    '<p class="muted page-intro-text">What each user has opened/watched, most recent activity first. Email shown only when the ' +
+    'buyer provided one at purchase. Capped at the 1000 most recent rows.</p>' +
+    resourceEmpty +
+    (resourceProgress.items.length
+      ? '<table><thead><tr><th>Code</th><th>Email</th><th>Exam</th><th>Resource</th><th>Type</th><th>Extent</th><th>Opens</th><th>Last activity</th></tr></thead>' +
+        '<tbody>' + resourceRows + '</tbody></table>'
+      : '');
 }
 
 // ---- Settings (course pricing) --------------------------------------------
