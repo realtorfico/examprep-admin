@@ -151,3 +151,17 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .rule-active-label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; white-space: nowrap; }
 .font-label { font-size: 0.8rem; }
 .alert-email-input { flex: 1; min-width: 14rem; }
+
+.exam-user-group { margin-bottom: 0.6rem; }
+.exam-user-group > summary { cursor: pointer; font-weight: 600; }
+.exam-user-group > summary .badge { font-weight: 600; }
+.exam-user-attempts { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
+.exam-attempt-detail {
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.85rem;
+}
+.exam-attempt-detail > summary { cursor: pointer; font-size: 0.9rem; }
+.exam-attempt-review { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.75rem; }
+.exam-review-row { border-top: 1px solid var(--border); padding-top: 0.6rem; font-size: 0.9rem; }
+.exam-review-row:first-child { border-top: none; padding-top: 0; }
+.exam-review-correct { color: var(--correct); font-weight: 600; }
+.exam-review-incorrect { color: var(--incorrect); font-weight: 600; }

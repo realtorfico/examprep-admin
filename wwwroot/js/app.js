@@ -126,6 +126,74 @@ function drawQuestionsTable() {
 
 // ---- Stats --------------------------------------------------------------
 
+// Attempts arrive flat (most-recent-first) from /console/exam-attempts -- grouped here by
+// userId so each user's full attempt history nests under one summary row, instead of every
+// attempt from every user interleaved in one long table.
+function groupExamAttemptsByUser(items) {
+  var byUser = {}, order = [];
+  items.forEach(function (a) {
+    if (!byUser[a.userId]) {
+      byUser[a.userId] = { userId: a.userId, code: a.code, buyerEmail: a.buyerEmail, examType: a.examType, attempts: [] };
+      order.push(a.userId);
+    }
+    byUser[a.userId].attempts.push(a);
+  });
+  return order.map(function (id) { return byUser[id]; });
+}
+
+function renderExamUserGroup(u) {
+  var best = Math.max.apply(null, u.attempts.map(function (a) { return a.percent; }));
+  var passedCount = u.attempts.filter(function (a) { return a.passed; }).length;
+  var who = u.buyerEmail || u.code || 'Unknown user';
+  var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
+
+  var attemptsHtml = u.attempts.map(function (a) {
+    return '<details class="exam-attempt-detail" data-attempt-id="' + a.attemptId + '">' +
+      '<summary>' + new Date(a.submittedAt * 1000).toLocaleString() + ' — ' + a.correct + ' / ' + a.total +
+      ' (' + a.percent + '%) <span class="badge ' + (a.passed ? 'redeemed' : 'revoked') + '">' +
+      (a.passed ? 'Passed' : 'Not passed') + '</span></summary>' +
+      '<div class="exam-attempt-review" id="exam-attempt-review-' + a.attemptId + '"><p class="muted">Loading…</p></div>' +
+      '</details>';
+  }).join('');
+
+  return '<details class="card exam-user-group">' +
+    '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.attempts.length +
+    ' attempt' + (u.attempts.length === 1 ? '' : 's') + ', best ' + best + '%, ' + passedCount + ' passed</summary>' +
+    '<div class="exam-user-attempts">' + attemptsHtml + '</div>' +
+    '</details>';
+}
+
+var examAttemptDetailCache = {}; // attemptId -> already-fetched review, avoids refetching on re-toggle
+
+async function loadExamAttemptReview(attemptId) {
+  var reviewEl = document.getElementById('exam-attempt-review-' + attemptId);
+  if (!reviewEl) return;
+  if (examAttemptDetailCache[attemptId]) { reviewEl.innerHTML = examAttemptDetailCache[attemptId]; return; }
+  try {
+    var detail = await apiFetch('/console/exam-attempts/detail?attemptId=' + encodeURIComponent(attemptId));
+    var html = detail.review.map(function (r, i) {
+      return '<div class="exam-review-row">' +
+        '<div><strong>Q' + (i + 1) + '.</strong> ' + r.topic + ' — ' + r.question + '</div>' +
+        '<div class="muted">Your answer: ' + (r.yourChoice ? r.yourChoice + '. ' + r.choices[r.yourChoice] : '(not answered)') + '</div>' +
+        (r.correct ? '' : '<div class="muted">Correct answer: ' + r.correctChoice + '. ' + r.choices[r.correctChoice] + '</div>') +
+        '<div class="' + (r.correct ? 'exam-review-correct' : 'exam-review-incorrect') + '">' + (r.correct ? 'Correct' : 'Incorrect') + '</div>' +
+        '</div>';
+    }).join('');
+    examAttemptDetailCache[attemptId] = html;
+    reviewEl.innerHTML = html;
+  } catch (err) {
+    reviewEl.innerHTML = '<p class="muted">Could not load this attempt.</p>';
+  }
+}
+
+// Capture phase: the native "toggle" event on <details> doesn't bubble in every browser, but
+// capturing always reaches the target on the way down regardless, so this still fires reliably.
+appEl.addEventListener('toggle', function (e) {
+  var el = e.target;
+  if (!el.classList || !el.classList.contains('exam-attempt-detail') || !el.open) return;
+  loadExamAttemptReview(el.getAttribute('data-attempt-id'));
+}, true);
+
 async function renderStats() {
   appEl.innerHTML = renderTabs('stats') + '<p>Loading…</p>';
   var results = await Promise.all([apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts')]);
@@ -144,12 +212,7 @@ async function renderStats() {
       '<td>' + new Date(r.last_opened_at * 1000).toLocaleString() + '</td></tr>';
   }).join('');
   var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
-  var examRows = examAttempts.items.map(function (a) {
-    return '<tr><td>' + (a.code || '—') + '</td><td>' + (a.buyerEmail || '—') + '</td><td>' + a.examType + '</td>' +
-      '<td>' + a.correct + ' / ' + a.total + '</td><td>' + a.percent + '%</td>' +
-      '<td><span class="badge ' + (a.passed ? 'redeemed' : 'revoked') + '">' + (a.passed ? 'Passed' : 'Not passed') + '</span></td>' +
-      '<td>' + new Date(a.submittedAt * 1000).toLocaleString() + '</td></tr>';
-  }).join('');
+  var examUsersHtml = groupExamAttemptsByUser(examAttempts.items).map(renderExamUserGroup).join('');
   var examEmpty = examAttempts.items.length ? '' : '<p class="muted">No mock exams taken yet.</p>';
 
   appEl.innerHTML = renderTabs('stats') +
@@ -159,12 +222,9 @@ async function renderStats() {
     '<div class="stats-column"><h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table></div>' +
     '</div>' +
     '<h3>Mock exam attempts</h3>' +
-    '<p class="muted page-intro-text">Every completed timed practice exam, most recent first. Capped at the 1000 most recent rows.</p>' +
-    examEmpty +
-    (examAttempts.items.length
-      ? '<table><thead><tr><th>Code</th><th>Email</th><th>Exam</th><th>Score</th><th>Percent</th><th>Result</th><th>Taken</th></tr></thead>' +
-        '<tbody>' + examRows + '</tbody></table>'
-      : '') +
+    '<p class="muted page-intro-text">Grouped by user, most recently active first. Expand a user to see each attempt; ' +
+    'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
+    examEmpty + examUsersHtml +
     '<h3>Resource consumption</h3>' +
     '<p class="muted page-intro-text">What each user has opened/watched, most recent activity first. Email shown only when the ' +
     'buyer provided one at purchase. Capped at the 1000 most recent rows.</p>' +
