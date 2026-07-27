@@ -26,7 +26,7 @@ function renderTopControls() {
   return '<div class="top-controls">' +
     '<div class="control-group"><button class="btn-secondary btn-sm" data-act="toggle-theme" data-next="' + nextTheme + '">' +
     (nextTheme === 'dark' ? '🌙 Dark' : '☀️ Light') + '</button></div>' +
-    '<div class="control-group"><span class="muted" style="font-size:0.8rem">Font:</span>' +
+    '<div class="control-group"><span class="muted font-label">Font:</span>' +
     '<div class="font-size-pill"><button data-act="font-down">A-</button><button data-act="font-up">A+</button></div></div>' +
     '</div>';
 }
@@ -192,7 +192,7 @@ async function renderSettings() {
   var alertEmail = bySetting.admin_alert_email || '';
   var alertEmailRow = '<div class="card price-row">' +
     '<span class="price-row-label">Alert email</span>' +
-    '<input type="email" class="alert-email-input" value="' + alertEmail + '" placeholder="you@example.com" style="flex:1;min-width:14rem;">' +
+    '<input type="email" class="alert-email-input" value="' + alertEmail + '" placeholder="you@example.com">' +
     '<button class="btn-primary btn-sm" data-act="save-alert-email">Save</button>' +
     '</div>';
 

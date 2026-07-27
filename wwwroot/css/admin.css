@@ -144,3 +144,5 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .refund-actions-cell { display: flex; flex-direction: column; gap: 0.4rem; min-width: 12rem; }
 .refund-admin-notes-input { width: 100%; }
 .rule-active-label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; white-space: nowrap; }
+.font-label { font-size: 0.8rem; }
+.alert-email-input { flex: 1; min-width: 14rem; }
