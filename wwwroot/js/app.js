@@ -221,11 +221,11 @@ async function renderStats() {
     '<div class="stats-column"><h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table></div>' +
     '<div class="stats-column"><h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table></div>' +
     '</div>' +
-    '<h3>Mock exam attempts</h3>' +
+    '<h3 class="stats-section-heading">Mock exam attempts</h3>' +
     '<p class="muted page-intro-text">Grouped by user, most recently active first. Expand a user to see each attempt; ' +
     'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
     examEmpty + examUsersHtml +
-    '<h3>Resource consumption</h3>' +
+    '<h3 class="stats-section-heading">Resource consumption</h3>' +
     '<p class="muted page-intro-text">What each user has opened/watched, most recent activity first. Email shown only when the ' +
     'buyer provided one at purchase. Capped at the 1000 most recent rows.</p>' +
     resourceEmpty +
