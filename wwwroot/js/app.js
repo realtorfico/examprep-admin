@@ -128,8 +128,8 @@ function drawQuestionsTable() {
 
 async function renderStats() {
   appEl.innerHTML = renderTabs('stats') + '<p>Loading…</p>';
-  var results = await Promise.all([apiFetch('/console/stats'), apiFetch('/console/resource-progress')]);
-  var s = results[0], resourceProgress = results[1];
+  var results = await Promise.all([apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts')]);
+  var s = results[0], resourceProgress = results[1], examAttempts = results[2];
   var codeRows = s.codes.map(function (c) {
     return '<tr><td>' + c.exam_type + '</td><td>' + c.status + '</td><td>' + c.n + '</td></tr>';
   }).join('');
@@ -144,6 +144,13 @@ async function renderStats() {
       '<td>' + new Date(r.last_opened_at * 1000).toLocaleString() + '</td></tr>';
   }).join('');
   var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
+  var examRows = examAttempts.items.map(function (a) {
+    return '<tr><td>' + (a.code || '—') + '</td><td>' + (a.buyerEmail || '—') + '</td><td>' + a.examType + '</td>' +
+      '<td>' + a.correct + ' / ' + a.total + '</td><td>' + a.percent + '%</td>' +
+      '<td><span class="badge ' + (a.passed ? 'redeemed' : 'revoked') + '">' + (a.passed ? 'Passed' : 'Not passed') + '</span></td>' +
+      '<td>' + new Date(a.submittedAt * 1000).toLocaleString() + '</td></tr>';
+  }).join('');
+  var examEmpty = examAttempts.items.length ? '' : '<p class="muted">No mock exams taken yet.</p>';
 
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
@@ -151,6 +158,13 @@ async function renderStats() {
     '<div class="stats-column"><h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table></div>' +
     '<div class="stats-column"><h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table></div>' +
     '</div>' +
+    '<h3>Mock exam attempts</h3>' +
+    '<p class="muted page-intro-text">Every completed timed practice exam, most recent first. Capped at the 1000 most recent rows.</p>' +
+    examEmpty +
+    (examAttempts.items.length
+      ? '<table><thead><tr><th>Code</th><th>Email</th><th>Exam</th><th>Score</th><th>Percent</th><th>Result</th><th>Taken</th></tr></thead>' +
+        '<tbody>' + examRows + '</tbody></table>'
+      : '') +
     '<h3>Resource consumption</h3>' +
     '<p class="muted page-intro-text">What each user has opened/watched, most recent activity first. Email shown only when the ' +
     'buyer provided one at purchase. Capped at the 1000 most recent rows.</p>' +
