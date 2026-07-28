@@ -156,10 +156,47 @@ function renderExamUserGroup(u) {
       '</details>';
   }).join('');
 
-  return '<details class="card exam-user-group">' +
+  return '<details class="card admin-user-group">' +
     '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.attempts.length +
     ' attempt' + (u.attempts.length === 1 ? '' : 's') + ', best ' + best + '%, ' + passedCount + ' passed</summary>' +
-    '<div class="exam-user-attempts">' + attemptsHtml + '</div>' +
+    '<div class="admin-user-items">' + attemptsHtml + '</div>' +
+    '</details>';
+}
+
+// Resource-progress rows are already the leaf-level detail (no further drill-down needed like
+// exam attempts have), so each grouped user just lists its resources directly -- no nested
+// <details>/lazy-fetch for this one.
+function groupResourceProgressByUser(items) {
+  var byUser = {}, order = [];
+  items.forEach(function (r) {
+    if (!byUser[r.user_id]) {
+      byUser[r.user_id] = { userId: r.user_id, code: r.code, buyerEmail: r.buyer_email, examType: r.exam_type, items: [] };
+      order.push(r.user_id);
+    }
+    byUser[r.user_id].items.push(r);
+  });
+  return order.map(function (id) { return byUser[id]; });
+}
+
+function renderResourceUserGroup(u) {
+  var who = u.buyerEmail || u.code || 'Unknown user';
+  var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
+
+  var itemsHtml = u.items.map(function (r) {
+    var extent = (r.resource_type === 'audio' || r.resource_type === 'video') ? r.percent + '%' : (r.percent >= 100 ? 'Viewed' : '—');
+    return '<div class="admin-user-subitem">' +
+      '<span>' + r.resource_file + '</span>' +
+      '<span class="muted">' + r.resource_type + '</span>' +
+      '<span>' + extent + '</span>' +
+      '<span class="muted">' + r.times_opened + ' open' + (r.times_opened === 1 ? '' : 's') + '</span>' +
+      '<span class="muted">' + new Date(r.last_opened_at * 1000).toLocaleString() + '</span>' +
+      '</div>';
+  }).join('');
+
+  return '<details class="card admin-user-group">' +
+    '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.items.length +
+    ' resource' + (u.items.length === 1 ? '' : 's') + '</summary>' +
+    '<div class="admin-user-items">' + itemsHtml + '</div>' +
     '</details>';
 }
 
@@ -205,12 +242,7 @@ async function renderStats() {
     var pct = a.attempts ? Math.round((100 * a.correct) / a.attempts) : 0;
     return '<tr><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + pct + '%</td><td>' + a.attempts + '</td></tr>';
   }).join('');
-  var resourceRows = resourceProgress.items.map(function (r) {
-    var extent = (r.resource_type === 'audio' || r.resource_type === 'video') ? r.percent + '%' : (r.percent >= 100 ? 'Viewed' : '—');
-    return '<tr><td>' + (r.code || '—') + '</td><td>' + (r.buyer_email || '—') + '</td><td>' + r.exam_type + '</td>' +
-      '<td>' + r.resource_file + '</td><td>' + r.resource_type + '</td><td>' + extent + '</td><td>' + r.times_opened + '</td>' +
-      '<td>' + new Date(r.last_opened_at * 1000).toLocaleString() + '</td></tr>';
-  }).join('');
+  var resourceUsersHtml = groupResourceProgressByUser(resourceProgress.items).map(renderResourceUserGroup).join('');
   var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
   var examUsersHtml = groupExamAttemptsByUser(examAttempts.items).map(renderExamUserGroup).join('');
   var examEmpty = examAttempts.items.length ? '' : '<p class="muted">No mock exams taken yet.</p>';
@@ -226,13 +258,9 @@ async function renderStats() {
     'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
     examEmpty + examUsersHtml +
     '<h3 class="stats-section-heading">Resource consumption</h3>' +
-    '<p class="muted page-intro-text">What each user has opened/watched, most recent activity first. Email shown only when the ' +
-    'buyer provided one at purchase. Capped at the 1000 most recent rows.</p>' +
-    resourceEmpty +
-    (resourceProgress.items.length
-      ? '<table><thead><tr><th>Code</th><th>Email</th><th>Exam</th><th>Resource</th><th>Type</th><th>Extent</th><th>Opens</th><th>Last activity</th></tr></thead>' +
-        '<tbody>' + resourceRows + '</tbody></table>'
-      : '');
+    '<p class="muted page-intro-text">Grouped by user, most recently active first. Email shown only when the buyer provided ' +
+    'one at purchase. Capped at the 1000 most recent rows.</p>' +
+    resourceEmpty + resourceUsersHtml;
 }
 
 // ---- Settings (course pricing) --------------------------------------------
