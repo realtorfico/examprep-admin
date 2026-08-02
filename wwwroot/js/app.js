@@ -88,11 +88,20 @@ function distinctTopics(questions) {
   return topics;
 }
 
+function topicCounts(questions) {
+  var counts = {};
+  questions.forEach(function (q) { counts[q.topic] = (counts[q.topic] || 0) + 1; });
+  return counts;
+}
+
 function renderTopicSubTabs(topics) {
+  var counts = topicCounts(questionsCache);
   var tabs = [null].concat(topics);
   return '<nav class="tabs sub-tabs topic-sub-tabs">' + tabs.map(function (t) {
+    var count = t === null ? questionsCache.length : (counts[t] || 0);
     return '<a href="#" data-act="select-topic-tab" data-topic="' + (t === null ? '' : t) + '"' +
-      (t === currentQuestionsTopic ? ' aria-current="page"' : '') + '>' + (t === null ? 'All' : t) + '</a>';
+      (t === currentQuestionsTopic ? ' aria-current="page"' : '') + '>' +
+      (t === null ? 'All' : t) + ' (' + count + ')</a>';
   }).join('') + '</nav>';
 }
 
