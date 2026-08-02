@@ -310,7 +310,7 @@ async function renderSettings() {
   var minChargeCents = parseInt(bySetting.min_paypal_charge_cents, 10);
   var minChargeDollars = Number.isFinite(minChargeCents) ? (minChargeCents / 100).toFixed(2) : '1.00';
   var minChargeRow = '<div class="card price-row">' +
-    '<span class="price-row-label">Minimum PayPal charge</span>' +
+    '<span class="price-row-label">Minimum card/wallet charge</span>' +
     '<input type="number" step="0.01" min="0" class="min-charge-input" value="' + minChargeDollars + '" placeholder="1.00">' +
     '<button class="btn-primary btn-sm" data-act="save-min-charge">Save</button>' +
     '</div>';
@@ -337,8 +337,8 @@ async function renderSettings() {
     '</div>' +
     '<div class="settings-column">' +
     '<h3>Points discount floor</h3>' +
-    '<p class="muted page-intro-text">A points discount can never leave less than this payable through PayPal (points fully ' +
-    'covering a course still redeem free with zero cash, no PayPal involved, so this doesn\'t affect that).</p>' +
+    '<p class="muted page-intro-text">A points discount can never leave less than this payable through the card/wallet processor ' +
+    '(points fully covering a course still redeem free with zero cash, no charge involved, so this doesn\'t affect that).</p>' +
     minChargeRow +
     '</div>' +
     '<div class="settings-column">' +
@@ -459,6 +459,13 @@ async function renderRefunds() {
   var data = await apiFetch('/console/refund-claims');
   var claimTypeLabel = { unconditional_7day: '7-Day', exam_failure_50pct: 'Exam Failure 50%' };
   var statusBadgeClass = { pending: '', approved: '', denied: 'revoked', refunded: 'redeemed' };
+  var processorLabel = function (note) {
+    if (!note) return '—';
+    if (note.indexOf('stripe:') === 0) return 'Stripe';
+    if (note.indexOf('paypal:') === 0) return 'PayPal';
+    if (note.indexOf('points:') === 0) return 'Points (no charge)';
+    return note;
+  };
   var rows = data.claims.map(function (c) {
     var details = [];
     if (c.exam_date) details.push('Exam: ' + c.exam_date);
@@ -479,6 +486,7 @@ async function renderRefunds() {
     }
     return '<tr><td>' + c.code + '</td><td>' + c.email + '</td><td>' + (claimTypeLabel[c.claim_type] || c.claim_type) + '</td>' +
       '<td>$' + (c.refund_cents / 100).toFixed(2) + '</td>' +
+      '<td>' + processorLabel(c.code_note) + '</td>' +
       '<td><span class="badge ' + (statusBadgeClass[c.status] || '') + '">' + c.status + '</span></td>' +
       '<td>' + (details.join('<br>') || '—') + '</td>' +
       '<td>' + new Date(c.created_at * 1000).toLocaleDateString() + '</td>' +
@@ -487,11 +495,11 @@ async function renderRefunds() {
   var empty = data.claims.length ? '' : '<p class="muted">No refund claims yet.</p>';
 
   appEl.innerHTML = renderTabs('refunds') +
-    '<p class="muted page-intro-text">Approve or deny each claim after review, then process the actual refund in PayPal yourself ' +
-    'and mark it Refunded here. Marking a 7-Day claim Refunded automatically revokes the code.</p>' +
+    '<p class="muted page-intro-text">Approve or deny each claim after review, then process the actual refund with the ' +
+    'processor shown below and mark it Refunded here. Marking a 7-Day claim Refunded automatically revokes the code.</p>' +
     empty +
     (data.claims.length
-      ? '<table><thead><tr><th>Code</th><th>Email</th><th>Type</th><th>Amount</th><th>Status</th><th>Details</th><th>Created</th><th>Actions</th></tr></thead>' +
+      ? '<table><thead><tr><th>Code</th><th>Email</th><th>Type</th><th>Amount</th><th>Processor</th><th>Status</th><th>Details</th><th>Created</th><th>Actions</th></tr></thead>' +
         '<tbody>' + rows + '</tbody></table>'
       : '');
 }
