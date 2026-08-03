@@ -300,16 +300,24 @@ var ACCURACY_NUMERIC_KEYS = new Set(['pct', 'attempts']);
 var ACCURACY_COLUMNS = [['exam_type', 'Exam'], ['topic', 'Topic'], ['pct', '% correct'], ['attempts', 'Attempts']];
 var statsAccuracyCache = [];
 var accuracySort = { key: 'exam_type', dir: 1 }; // matches the old default: API order, grouped by exam
+var ACCURACY_COLLAPSED_COUNT = 8;
+var accuracyExpanded = false;
 
 function drawAccuracyTable() {
   var container = document.getElementById('accuracy-table-container');
   if (!container) return;
   var rows = sortTableRows(statsAccuracyCache, accuracySort, ACCURACY_NUMERIC_KEYS);
-  var body = rows.map(function (a) {
+  var truncated = !accuracyExpanded && rows.length > ACCURACY_COLLAPSED_COUNT;
+  var visible = truncated ? rows.slice(0, ACCURACY_COLLAPSED_COUNT) : rows;
+  var body = visible.map(function (a) {
     return '<tr><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + a.pct + '%</td><td>' + a.attempts + '</td></tr>';
   }).join('');
+  var toggleHtml = rows.length > ACCURACY_COLLAPSED_COUNT
+    ? '<button class="btn-secondary btn-sm" type="button" data-act="toggle-accuracy-topics">' +
+      (truncated ? 'Show all ' + rows.length + ' ▾' : 'Show fewer ▴') + '</button>'
+    : '';
   container.innerHTML = '<table><thead>' + sortableHeaderRow(ACCURACY_COLUMNS, accuracySort, 'sort-accuracy') +
-    '</thead><tbody>' + body + '</tbody></table>';
+    '</thead><tbody>' + body + '</tbody></table>' + toggleHtml;
 }
 
 async function renderStats() {
@@ -713,6 +721,9 @@ appEl.addEventListener('click', async function (e) {
     var accuracySortKey = el.getAttribute('data-key');
     if (accuracySort.key === accuracySortKey) accuracySort.dir *= -1;
     else { accuracySort.key = accuracySortKey; accuracySort.dir = 1; }
+    drawAccuracyTable();
+  } else if (act === 'toggle-accuracy-topics') {
+    accuracyExpanded = !accuracyExpanded;
     drawAccuracyTable();
   } else if (act === 'sort-quiz-progress-topics') {
     var qpUserId = el.getAttribute('data-user-id');
