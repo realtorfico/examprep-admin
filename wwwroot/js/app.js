@@ -32,7 +32,7 @@ function renderTopControls() {
 }
 
 function renderTabs(active) {
-  var tabs = [['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats']];
+  var tabs = [['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -623,6 +623,57 @@ async function renderRefunds() {
       : '');
 }
 
+// ---- Stalled buyers (re-engagement) ------------------------------------
+// Admin-triggered, one at a time -- no automation/cron here on purpose, so a bad threshold or a
+// bug can't blast emails unsupervised. See handleConsoleStalledBuyerRemind in the Worker.
+
+var stalledBuyersDays = 7;
+var stalledBuyersCache = [];
+var stalledBuyerSendingIds = {}; // userId -> true while a send is in-flight, disables that row's button
+
+async function loadStalledBuyers() {
+  var container = document.getElementById('stalled-buyers-table-container');
+  if (container) container.innerHTML = '<p class="muted">Loading…</p>';
+  var data = await apiFetch('/console/stalled-buyers?days=' + encodeURIComponent(stalledBuyersDays));
+  stalledBuyersCache = data.items;
+  drawStalledBuyersTable();
+}
+
+function drawStalledBuyersTable() {
+  var container = document.getElementById('stalled-buyers-table-container');
+  if (!container) return;
+  var rows = stalledBuyersCache.map(function (u) {
+    var lastSeen = new Date(u.last_seen_at * 1000).toLocaleDateString();
+    var lastReminded = u.last_reminder_sent_at ? new Date(u.last_reminder_sent_at * 1000).toLocaleDateString() : '—';
+    var sending = stalledBuyerSendingIds[u.user_id];
+    var actionCell = !u.buyer_email
+      ? '<span class="muted">No email on file</span>'
+      : '<button class="btn-secondary btn-sm" type="button" data-act="send-stalled-reminder" data-user-id="' + u.user_id + '"' +
+        (sending ? ' disabled' : '') + '>' + (sending ? 'Sending…' : 'Send reminder') + '</button>';
+    return '<tr><td>' + (u.buyer_email || '—') + '</td><td>' + u.code + '</td><td class="muted">' + u.exam_type + '</td>' +
+      '<td>' + lastSeen + '</td><td class="muted">' + lastReminded + '</td><td>' + actionCell + '</td></tr>';
+  }).join('');
+  var empty = stalledBuyersCache.length ? '' : '<p class="muted">No stalled buyers at this threshold.</p>';
+  container.innerHTML = empty + (stalledBuyersCache.length
+    ? '<table><thead><tr><th>Email</th><th>Code</th><th>Exam</th><th>Last active</th><th>Last reminded</th><th></th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>'
+    : '');
+}
+
+async function renderStalledBuyers() {
+  appEl.innerHTML = renderTabs('stalled') +
+    '<p class="muted page-intro-text">Buyers who redeemed a code but haven\'t been active in a while. Sending is manual, ' +
+    'per user, one click at a time -- nothing here goes out automatically.</p>' +
+    '<div class="card generate-form">' +
+    '<label class="muted">Inactive for at least</label>' +
+    '<input type="number" id="stalled-days-input" value="' + stalledBuyersDays + '" min="1" style="width:5rem">' +
+    '<span class="muted">days</span>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="refresh-stalled-buyers">Refresh</button>' +
+    '</div>' +
+    '<div id="stalled-buyers-table-container"><p class="muted">Loading…</p></div>';
+  await loadStalledBuyers();
+}
+
 // ---- Routing + delegated events --------------------------------------
 
 function route() {
@@ -633,6 +684,7 @@ function route() {
   else if (view === 'points') renderPoints();
   else if (view === 'settings') renderSettings();
   else if (view === 'refunds') renderRefunds();
+  else if (view === 'stalled') renderStalledBuyers();
   else renderCodes();
 }
 window.addEventListener('hashchange', route);
@@ -702,6 +754,24 @@ appEl.addEventListener('click', async function (e) {
   } else if (act === 'select-topic-tab') {
     currentQuestionsTopic = el.getAttribute('data-topic') || null;
     drawQuestionsTable();
+  } else if (act === 'refresh-stalled-buyers') {
+    var daysInput = document.getElementById('stalled-days-input');
+    var daysVal = daysInput ? parseInt(daysInput.value, 10) : NaN;
+    stalledBuyersDays = Number.isFinite(daysVal) && daysVal > 0 ? daysVal : stalledBuyersDays;
+    await loadStalledBuyers();
+  } else if (act === 'send-stalled-reminder') {
+    var remindUserId = el.getAttribute('data-user-id');
+    stalledBuyerSendingIds[remindUserId] = true;
+    drawStalledBuyersTable();
+    try {
+      await apiFetch('/console/stalled-buyers/remind', { method: 'POST', body: { userId: remindUserId } });
+      delete stalledBuyerSendingIds[remindUserId];
+      await loadStalledBuyers(); // refreshes "Last reminded" and re-applies the threshold filter
+    } catch (err) {
+      delete stalledBuyerSendingIds[remindUserId];
+      drawStalledBuyersTable();
+      alert('Could not send reminder: ' + (err.data && err.data.error ? err.data.error : 'unknown error'));
+    }
   } else if (act === 'save-price') {
     var examType = el.getAttribute('data-exam');
     var input = document.querySelector('.price-input[data-exam="' + examType + '"]');
