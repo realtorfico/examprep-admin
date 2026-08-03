@@ -211,6 +211,7 @@ function renderResourceUserGroup(u) {
 
 // Quiz-progress rows arrive as one row per (user, topic) -- grouped here into one card per user,
 // each holding its own per-topic accuracy table, mirroring the student's own Progress tab.
+// Users are ranked by total questions answered, most active first.
 function groupQuizProgressByUser(items) {
   var byUser = {}, order = [];
   items.forEach(function (r) {
@@ -223,7 +224,33 @@ function groupQuizProgressByUser(items) {
     u.total += r.total;
     u.correct += r.correct;
   });
-  return order.map(function (id) { return byUser[id]; });
+  var grouped = order.map(function (id) { return byUser[id]; });
+  grouped.sort(function (a, b) { return b.total - a.total; });
+  return grouped;
+}
+
+function topicPctOf(t) { return t.total ? Math.round((100 * t.correct) / t.total) : 0; }
+
+var QUIZ_PROGRESS_TOPIC_COLUMNS = [['topic', 'Topic'], ['pct', 'Accuracy'], ['total', 'Questions']];
+var quizProgressGroupsCache = []; // userId -> group, so a per-user sort click can redraw without refetching
+var quizProgressTopicSort = {}; // userId -> { key, dir }, independent sort state per user's table
+
+function quizProgressTableHtml(u) {
+  var sort = quizProgressTopicSort[u.userId] || (quizProgressTopicSort[u.userId] = { key: 'topic', dir: 1 });
+  var rows = u.topics.slice().sort(function (a, b) {
+    var av = sort.key === 'topic' ? a.topic.toLowerCase() : sort.key === 'pct' ? topicPctOf(a) : a.total;
+    var bv = sort.key === 'topic' ? b.topic.toLowerCase() : sort.key === 'pct' ? topicPctOf(b) : b.total;
+    if (av < bv) return -1 * sort.dir;
+    if (av > bv) return 1 * sort.dir;
+    return 0;
+  }).map(function (t) {
+    return '<tr><td>' + t.topic + '</td><td>' + topicPctOf(t) + '%</td><td>' + t.total + '</td></tr>';
+  }).join('');
+  var headerCells = QUIZ_PROGRESS_TOPIC_COLUMNS.map(function (c) {
+    var indicator = sort.key === c[0] ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return '<th data-act="sort-quiz-progress-topics" data-user-id="' + u.userId + '" data-key="' + c[0] + '">' + c[1] + indicator + '</th>';
+  }).join('');
+  return '<table class="admin-user-table"><thead><tr>' + headerCells + '</tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
 function renderQuizProgressUserGroup(u) {
@@ -231,15 +258,10 @@ function renderQuizProgressUserGroup(u) {
   var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
   var pct = u.total ? Math.round((100 * u.correct) / u.total) : 0;
 
-  var rows = u.topics.slice().sort(function (a, b) { return a.topic.localeCompare(b.topic); }).map(function (t) {
-    var topicPct = t.total ? Math.round((100 * t.correct) / t.total) : 0;
-    return '<tr><td>' + t.topic + '</td><td>' + topicPct + '%</td><td>' + t.total + '</td></tr>';
-  }).join('');
-
   return '<details class="card admin-user-group">' +
     '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.total +
     ' answered, ' + pct + '% accuracy</summary>' +
-    '<table class="admin-user-table"><thead><tr><th>Topic</th><th>Accuracy</th><th>Questions</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div id="quiz-progress-table-' + u.userId + '">' + quizProgressTableHtml(u) + '</div>' +
     '</details>';
 }
 
@@ -306,7 +328,8 @@ async function renderStats() {
   var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
   var examUsersHtml = groupExamAttemptsByUser(examAttempts.items).map(renderExamUserGroup).join('');
   var examEmpty = examAttempts.items.length ? '' : '<p class="muted">No mock exams taken yet.</p>';
-  var quizUsersHtml = groupQuizProgressByUser(quizProgress.items).map(renderQuizProgressUserGroup).join('');
+  quizProgressGroupsCache = groupQuizProgressByUser(quizProgress.items);
+  var quizUsersHtml = quizProgressGroupsCache.map(renderQuizProgressUserGroup).join('');
   var quizEmpty = quizProgress.items.length ? '' : '<p class="muted">No quiz activity yet.</p>';
 
   appEl.innerHTML = renderTabs('stats') +
@@ -691,6 +714,15 @@ appEl.addEventListener('click', async function (e) {
     if (accuracySort.key === accuracySortKey) accuracySort.dir *= -1;
     else { accuracySort.key = accuracySortKey; accuracySort.dir = 1; }
     drawAccuracyTable();
+  } else if (act === 'sort-quiz-progress-topics') {
+    var qpUserId = el.getAttribute('data-user-id');
+    var qpKey = el.getAttribute('data-key');
+    var qpSort = quizProgressTopicSort[qpUserId] || (quizProgressTopicSort[qpUserId] = { key: 'topic', dir: 1 });
+    if (qpSort.key === qpKey) qpSort.dir *= -1;
+    else { qpSort.key = qpKey; qpSort.dir = 1; }
+    var qpContainer = document.getElementById('quiz-progress-table-' + qpUserId);
+    var qpGroup = quizProgressGroupsCache.filter(function (g) { return g.userId === qpUserId; })[0];
+    if (qpContainer && qpGroup) qpContainer.innerHTML = quizProgressTableHtml(qpGroup);
   } else if (act === 'toggle-theme') {
     var nextTheme = el.getAttribute('data-next');
     var local = loadLocalPrefs();
