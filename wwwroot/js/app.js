@@ -205,7 +205,41 @@ function renderResourceUserGroup(u) {
   return '<details class="card admin-user-group">' +
     '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.items.length +
     ' resource' + (u.items.length === 1 ? '' : 's') + '</summary>' +
-    '<table class="admin-user-table"><thead><tr><th>Resource</th><th>Type</th><th>Progress</th><th>Views</th><th>Last viewed</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<table class="admin-user-table resource-consumption-table"><thead><tr><th>Resource</th><th>Type</th><th>Progress</th><th>Views</th><th>Last viewed</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</details>';
+}
+
+// Quiz-progress rows arrive as one row per (user, topic) -- grouped here into one card per user,
+// each holding its own per-topic accuracy table, mirroring the student's own Progress tab.
+function groupQuizProgressByUser(items) {
+  var byUser = {}, order = [];
+  items.forEach(function (r) {
+    if (!byUser[r.user_id]) {
+      byUser[r.user_id] = { userId: r.user_id, code: r.code, buyerEmail: r.buyer_email, examType: r.exam_type, topics: [], total: 0, correct: 0 };
+      order.push(r.user_id);
+    }
+    var u = byUser[r.user_id];
+    u.topics.push({ topic: r.topic, total: r.total, correct: r.correct });
+    u.total += r.total;
+    u.correct += r.correct;
+  });
+  return order.map(function (id) { return byUser[id]; });
+}
+
+function renderQuizProgressUserGroup(u) {
+  var who = u.buyerEmail || u.code || 'Unknown user';
+  var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
+  var pct = u.total ? Math.round((100 * u.correct) / u.total) : 0;
+
+  var rows = u.topics.slice().sort(function (a, b) { return a.topic.localeCompare(b.topic); }).map(function (t) {
+    var topicPct = t.total ? Math.round((100 * t.correct) / t.total) : 0;
+    return '<tr><td>' + t.topic + '</td><td>' + topicPct + '%</td><td>' + t.total + '</td></tr>';
+  }).join('');
+
+  return '<details class="card admin-user-group">' +
+    '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.total +
+    ' answered, ' + pct + '% accuracy</summary>' +
+    '<table class="admin-user-table"><thead><tr><th>Topic</th><th>Accuracy</th><th>Questions</th></tr></thead><tbody>' + rows + '</tbody></table>' +
     '</details>';
 }
 
@@ -258,8 +292,10 @@ function drawAccuracyTable() {
 
 async function renderStats() {
   appEl.innerHTML = renderTabs('stats') + '<p>Loading…</p>';
-  var results = await Promise.all([apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts')]);
-  var s = results[0], resourceProgress = results[1], examAttempts = results[2];
+  var results = await Promise.all([
+    apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts'), apiFetch('/console/quiz-progress'),
+  ]);
+  var s = results[0], resourceProgress = results[1], examAttempts = results[2], quizProgress = results[3];
   var codeRows = s.codes.map(function (c) {
     return '<tr><td>' + c.exam_type + '</td><td>' + c.status + '</td><td>' + c.n + '</td></tr>';
   }).join('');
@@ -270,6 +306,8 @@ async function renderStats() {
   var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
   var examUsersHtml = groupExamAttemptsByUser(examAttempts.items).map(renderExamUserGroup).join('');
   var examEmpty = examAttempts.items.length ? '' : '<p class="muted">No mock exams taken yet.</p>';
+  var quizUsersHtml = groupQuizProgressByUser(quizProgress.items).map(renderQuizProgressUserGroup).join('');
+  var quizEmpty = quizProgress.items.length ? '' : '<p class="muted">No quiz activity yet.</p>';
 
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
@@ -278,6 +316,9 @@ async function renderStats() {
     '<div class="stats-column"><h3>Accuracy by topic</h3><div id="accuracy-table-container"></div></div>' +
     '<div class="stats-column"><h3>Resource consumption</h3>' + resourceEmpty + resourceUsersHtml + '</div>' +
     '</div>' +
+    '<h3 class="stats-section-heading">User quiz progress</h3>' +
+    '<p class="muted page-intro-text">Practice-quiz accuracy per user, broken down by topic — the same data each user sees on their own Progress tab.</p>' +
+    quizEmpty + quizUsersHtml +
     '<h3 class="stats-section-heading">Mock exam attempts</h3>' +
     '<p class="muted page-intro-text">Grouped by user, most recently active first. Expand a user to see each attempt; ' +
     'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
