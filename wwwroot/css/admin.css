@@ -78,7 +78,7 @@ nav.sub-tabs a[aria-current="page"] {
 
 table { width: 100%; border-collapse: collapse; background: var(--surface-2); border-radius: 10px; overflow: hidden; }
 th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-th[data-act="sort-accounts"], th[data-act="sort-referrals"] { cursor: pointer; user-select: none; white-space: nowrap; }
+th[data-act="sort-accounts"], th[data-act="sort-referrals"], th[data-act="sort-accuracy"] { cursor: pointer; user-select: none; white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
 
 .card {
@@ -162,10 +162,14 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .admin-user-group > summary { cursor: pointer; font-weight: 600; }
 .admin-user-group > summary .badge { font-weight: 600; }
 .admin-user-items { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
-.admin-user-subitem {
-  display: flex; flex-direction: column; gap: 0.15rem;
-  border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.8rem;
-}
+/* Fits the narrow (1fr) resource-consumption column without widening it or scrolling. */
+.admin-user-table { margin-top: 0.75rem; font-size: 0.75rem; table-layout: fixed; }
+.admin-user-table th, .admin-user-table td { padding: 0.3rem 0.4rem; word-break: break-word; }
+.admin-user-table th:nth-child(1), .admin-user-table td:nth-child(1) { width: 34%; }
+.admin-user-table th:nth-child(2), .admin-user-table td:nth-child(2) { width: 16%; }
+.admin-user-table th:nth-child(3), .admin-user-table td:nth-child(3) { width: 18%; }
+.admin-user-table th:nth-child(4), .admin-user-table td:nth-child(4) { width: 12%; }
+.admin-user-table th:nth-child(5), .admin-user-table td:nth-child(5) { width: 20%; }
 .exam-attempt-detail {
   border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.85rem;
 }

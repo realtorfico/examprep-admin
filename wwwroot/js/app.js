@@ -191,21 +191,21 @@ function renderResourceUserGroup(u) {
   var who = u.buyerEmail || u.code || 'Unknown user';
   var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
 
-  var itemsHtml = u.items.map(function (r) {
+  var rows = u.items.map(function (r) {
     var extent = (r.resource_type === 'audio' || r.resource_type === 'video') ? r.percent + '%' : (r.percent >= 100 ? 'Viewed' : '—');
-    return '<div class="admin-user-subitem">' +
-      '<span>' + r.resource_file + '</span>' +
-      '<span class="muted">' + r.resource_type + '</span>' +
-      '<span>' + extent + '</span>' +
-      '<span class="muted">' + r.times_opened + ' open' + (r.times_opened === 1 ? '' : 's') + '</span>' +
-      '<span class="muted">' + new Date(r.last_opened_at * 1000).toLocaleString() + '</span>' +
-      '</div>';
+    return '<tr>' +
+      '<td>' + r.resource_file + '</td>' +
+      '<td class="muted">' + r.resource_type + '</td>' +
+      '<td>' + extent + '</td>' +
+      '<td>' + r.times_opened + '</td>' +
+      '<td class="muted">' + new Date(r.last_opened_at * 1000).toLocaleDateString() + '</td>' +
+      '</tr>';
   }).join('');
 
   return '<details class="card admin-user-group">' +
     '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.items.length +
     ' resource' + (u.items.length === 1 ? '' : 's') + '</summary>' +
-    '<div class="admin-user-items">' + itemsHtml + '</div>' +
+    '<table class="admin-user-table"><thead><tr><th>Resource</th><th>Type</th><th>Progress</th><th>Views</th><th>Last viewed</th></tr></thead><tbody>' + rows + '</tbody></table>' +
     '</details>';
 }
 
@@ -240,6 +240,22 @@ appEl.addEventListener('toggle', function (e) {
   loadExamAttemptReview(el.getAttribute('data-attempt-id'));
 }, true);
 
+var ACCURACY_NUMERIC_KEYS = new Set(['pct', 'attempts']);
+var ACCURACY_COLUMNS = [['exam_type', 'Exam'], ['topic', 'Topic'], ['pct', '% correct'], ['attempts', 'Attempts']];
+var statsAccuracyCache = [];
+var accuracySort = { key: 'exam_type', dir: 1 }; // matches the old default: API order, grouped by exam
+
+function drawAccuracyTable() {
+  var container = document.getElementById('accuracy-table-container');
+  if (!container) return;
+  var rows = sortTableRows(statsAccuracyCache, accuracySort, ACCURACY_NUMERIC_KEYS);
+  var body = rows.map(function (a) {
+    return '<tr><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + a.pct + '%</td><td>' + a.attempts + '</td></tr>';
+  }).join('');
+  container.innerHTML = '<table><thead>' + sortableHeaderRow(ACCURACY_COLUMNS, accuracySort, 'sort-accuracy') +
+    '</thead><tbody>' + body + '</tbody></table>';
+}
+
 async function renderStats() {
   appEl.innerHTML = renderTabs('stats') + '<p>Loading…</p>';
   var results = await Promise.all([apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts')]);
@@ -247,10 +263,9 @@ async function renderStats() {
   var codeRows = s.codes.map(function (c) {
     return '<tr><td>' + c.exam_type + '</td><td>' + c.status + '</td><td>' + c.n + '</td></tr>';
   }).join('');
-  var accRows = s.accuracyByTopic.map(function (a) {
-    var pct = a.attempts ? Math.round((100 * a.correct) / a.attempts) : 0;
-    return '<tr><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + pct + '%</td><td>' + a.attempts + '</td></tr>';
-  }).join('');
+  statsAccuracyCache = s.accuracyByTopic.map(function (a) {
+    return { exam_type: a.exam_type, topic: a.topic, attempts: a.attempts, pct: a.attempts ? Math.round((100 * a.correct) / a.attempts) : 0 };
+  });
   var resourceUsersHtml = groupResourceProgressByUser(resourceProgress.items).map(renderResourceUserGroup).join('');
   var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
   var examUsersHtml = groupExamAttemptsByUser(examAttempts.items).map(renderExamUserGroup).join('');
@@ -260,13 +275,14 @@ async function renderStats() {
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
     '<div class="stats-grid stats-grid-quarter-half-quarter">' +
     '<div class="stats-column"><h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table></div>' +
-    '<div class="stats-column"><h3>Accuracy by topic</h3><table><thead><tr><th>Exam</th><th>Topic</th><th>% correct</th><th>Attempts</th></tr></thead><tbody>' + accRows + '</tbody></table></div>' +
+    '<div class="stats-column"><h3>Accuracy by topic</h3><div id="accuracy-table-container"></div></div>' +
     '<div class="stats-column"><h3>Resource consumption</h3>' + resourceEmpty + resourceUsersHtml + '</div>' +
     '</div>' +
     '<h3 class="stats-section-heading">Mock exam attempts</h3>' +
     '<p class="muted page-intro-text">Grouped by user, most recently active first. Expand a user to see each attempt; ' +
     'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
     examEmpty + examUsersHtml;
+  drawAccuracyTable();
 }
 
 // ---- Settings (course pricing) --------------------------------------------
@@ -629,6 +645,11 @@ appEl.addEventListener('click', async function (e) {
     if (referralsSort.key === referralsSortKey) referralsSort.dir *= -1;
     else { referralsSort.key = referralsSortKey; referralsSort.dir = 1; }
     drawReferralsTable();
+  } else if (act === 'sort-accuracy') {
+    var accuracySortKey = el.getAttribute('data-key');
+    if (accuracySort.key === accuracySortKey) accuracySort.dir *= -1;
+    else { accuracySort.key = accuracySortKey; accuracySort.dir = 1; }
+    drawAccuracyTable();
   } else if (act === 'toggle-theme') {
     var nextTheme = el.getAttribute('data-next');
     var local = loadLocalPrefs();
