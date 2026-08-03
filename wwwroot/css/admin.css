@@ -161,6 +161,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .admin-user-group { margin-bottom: 0.6rem; }
 .admin-user-group > summary { cursor: pointer; font-weight: 600; }
 .admin-user-group > summary .badge { font-weight: 600; }
+.admin-user-subline { margin: 0.5rem 0 0; font-size: 0.85rem; }
 .admin-user-items { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
 .admin-user-table { margin-top: 0.75rem; font-size: 0.75rem; }
 .admin-user-table th, .admin-user-table td { padding: 0.3rem 0.4rem; word-break: break-word; }

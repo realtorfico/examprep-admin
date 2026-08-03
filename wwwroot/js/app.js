@@ -212,11 +212,18 @@ function renderResourceUserGroup(u) {
 // Quiz-progress rows arrive as one row per (user, topic) -- grouped here into one card per user,
 // each holding its own per-topic accuracy table, mirroring the student's own Progress tab.
 // Users are ranked by total questions answered, most active first.
+//
+// NOTE: this "total/correct" is the same "last attempt wins" combined figure the student's own
+// Progress tab shows -- the underlying progress table doesn't record whether a question's current
+// status came from quiz mode or a mock exam (a question answered in both only reflects whichever
+// happened most recently, see index.js's progressUpsertStmt comment). So it is NOT quiz-only, and
+// can't be exactly decomposed into quiz-vs-exam portions. The one exact, unambiguous number we can
+// add is the mock-exam side, pulled straight from exam_attempts (see attachExamTotals below).
 function groupQuizProgressByUser(items) {
   var byUser = {}, order = [];
   items.forEach(function (r) {
     if (!byUser[r.user_id]) {
-      byUser[r.user_id] = { userId: r.user_id, code: r.code, buyerEmail: r.buyer_email, examType: r.exam_type, topics: [], total: 0, correct: 0 };
+      byUser[r.user_id] = { userId: r.user_id, code: r.code, buyerEmail: r.buyer_email, examType: r.exam_type, topics: [], total: 0, correct: 0, examTotal: 0, examCorrect: 0 };
       order.push(r.user_id);
     }
     var u = byUser[r.user_id];
@@ -227,6 +234,23 @@ function groupQuizProgressByUser(items) {
   var grouped = order.map(function (id) { return byUser[id]; });
   grouped.sort(function (a, b) { return b.total - a.total; });
   return grouped;
+}
+
+// Sums each user's submitted mock-exam attempts (correct/total) onto their progress group --
+// exam_attempts is per-attempt and mode-unambiguous, unlike the merged progress table above.
+function attachExamTotals(groups, examAttemptItems) {
+  var byUser = {};
+  examAttemptItems.forEach(function (a) {
+    if (!byUser[a.userId]) byUser[a.userId] = { correct: 0, total: 0 };
+    byUser[a.userId].correct += a.correct;
+    byUser[a.userId].total += a.total;
+  });
+  groups.forEach(function (u) {
+    var e = byUser[u.userId];
+    u.examCorrect = e ? e.correct : 0;
+    u.examTotal = e ? e.total : 0;
+  });
+  return groups;
 }
 
 function topicPctOf(t) { return t.total ? Math.round((100 * t.correct) / t.total) : 0; }
@@ -257,10 +281,15 @@ function renderQuizProgressUserGroup(u) {
   var who = u.buyerEmail || u.code || 'Unknown user';
   var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
   var pct = u.total ? Math.round((100 * u.correct) / u.total) : 0;
+  var examPct = u.examTotal ? Math.round((100 * u.examCorrect) / u.examTotal) : 0;
+  var examLine = u.examTotal
+    ? 'Mock exam: ' + u.examCorrect + '/' + u.examTotal + ' (' + examPct + '%)'
+    : 'Mock exam: no attempts yet';
 
   return '<details class="card admin-user-group">' +
-    '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — ' + u.total +
+    '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — Overall: ' + u.total +
     ' answered, ' + pct + '% accuracy</summary>' +
+    '<p class="muted admin-user-subline">' + examLine + '</p>' +
     '<div id="quiz-progress-table-' + u.userId + '">' + quizProgressTableHtml(u) + '</div>' +
     '</details>';
 }
@@ -336,7 +365,7 @@ async function renderStats() {
   var resourceEmpty = resourceProgress.items.length ? '' : '<p class="muted">No resource activity yet.</p>';
   var examUsersHtml = groupExamAttemptsByUser(examAttempts.items).map(renderExamUserGroup).join('');
   var examEmpty = examAttempts.items.length ? '' : '<p class="muted">No mock exams taken yet.</p>';
-  quizProgressGroupsCache = groupQuizProgressByUser(quizProgress.items);
+  quizProgressGroupsCache = attachExamTotals(groupQuizProgressByUser(quizProgress.items), examAttempts.items);
   var quizUsersHtml = quizProgressGroupsCache.map(renderQuizProgressUserGroup).join('');
   var quizEmpty = quizProgress.items.length ? '' : '<p class="muted">No quiz activity yet.</p>';
 
@@ -347,13 +376,15 @@ async function renderStats() {
     '<div class="stats-column"><h3>Accuracy by topic</h3><div id="accuracy-table-container"></div></div>' +
     '<div class="stats-column"><h3>Resource consumption</h3>' + resourceEmpty + resourceUsersHtml + '</div>' +
     '</div>' +
-    '<h3 class="stats-section-heading">User quiz progress</h3>' +
-    '<p class="muted page-intro-text">Practice-quiz accuracy per user, broken down by topic — the same data each user sees on their own Progress tab.</p>' +
-    quizEmpty + quizUsersHtml +
-    '<h3 class="stats-section-heading">Mock exam attempts</h3>' +
+    '<div class="stats-grid">' +
+    '<div class="stats-column"><h3>User progress</h3>' +
+    '<p class="muted page-intro-text">Per-user accuracy by topic (quiz + mock exam combined, same as each user\'s own Progress tab), plus their mock-exam-only total.</p>' +
+    quizEmpty + quizUsersHtml + '</div>' +
+    '<div class="stats-column"><h3>Mock exam attempts</h3>' +
     '<p class="muted page-intro-text">Grouped by user, most recently active first. Expand a user to see each attempt; ' +
     'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
-    examEmpty + examUsersHtml;
+    examEmpty + examUsersHtml + '</div>' +
+    '</div>';
   drawAccuracyTable();
 }
 
