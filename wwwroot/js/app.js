@@ -12,11 +12,18 @@ function saveLocalPrefs(theme, fontScale) {
   localStorage.setItem('examprep_admin_theme', theme);
   localStorage.setItem('examprep_admin_font', String(fontScale));
 }
+// CSP (style-src 'self', no unsafe-inline) blocks inline styles set via JS too, not just
+// style="..." attributes -- so --font-scale can't be set with style.setProperty(). fontScale is
+// bounded [0.85, 1.4] in 0.05 steps (12 values, see font-up/down below), so a small fixed set of
+// font-scale-NN classes (see admin.css) covers it instead.
 function applyTheme(theme, fontScale) {
   var root = document.documentElement;
   if (theme && theme !== 'system') root.setAttribute('data-theme', theme);
   else root.removeAttribute('data-theme');
-  if (fontScale) root.style.setProperty('--font-scale', fontScale);
+  if (fontScale) {
+    root.className = root.className.replace(/\bfont-scale-\d+\b/g, '').trim();
+    root.classList.add('font-scale-' + Math.round(fontScale * 100));
+  }
 }
 
 function renderTopControls() {
@@ -666,7 +673,7 @@ async function renderStalledBuyers() {
     'per user, one click at a time -- nothing here goes out automatically.</p>' +
     '<div class="card generate-form">' +
     '<label class="muted">Inactive for at least</label>' +
-    '<input type="number" id="stalled-days-input" value="' + stalledBuyersDays + '" min="1" style="width:5rem">' +
+    '<input type="number" id="stalled-days-input" class="stalled-days-input" value="' + stalledBuyersDays + '" min="1">' +
     '<span class="muted">days</span>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="refresh-stalled-buyers">Refresh</button>' +
     '</div>' +
