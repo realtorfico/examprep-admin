@@ -197,3 +197,5 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .exam-review-row:first-child { border-top: none; padding-top: 0; }
 .exam-review-correct { color: var(--correct); font-weight: 600; }
 .exam-review-incorrect { color: var(--incorrect); font-weight: 600; }
+.progress-row-low { color: var(--incorrect); font-weight: 600; }
+.progress-row-good { color: var(--correct); font-weight: 600; }

@@ -164,8 +164,9 @@ function renderExamUserGroup(u) {
   var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
 
   var attemptsHtml = u.attempts.map(function (a) {
+    var scoreCls = a.passed ? 'exam-review-correct' : 'exam-review-incorrect';
     return '<details class="exam-attempt-detail" data-attempt-id="' + a.attemptId + '">' +
-      '<summary>' + new Date(a.submittedAt * 1000).toLocaleString() + ' — ' + a.correct + ' / ' + a.total +
+      '<summary>' + new Date(a.submittedAt * 1000).toLocaleString() + ' — <span class="' + scoreCls + '">' + a.correct + ' / ' + a.total + '</span>' +
       ' (' + a.percent + '%) <span class="badge ' + (a.passed ? 'redeemed' : 'revoked') + '">' +
       (a.passed ? 'Passed' : 'Not passed') + '</span></summary>' +
       '<div class="exam-attempt-review" id="exam-attempt-review-' + a.attemptId + '"><p class="muted">Loading…</p></div>' +
@@ -261,6 +262,8 @@ function attachExamTotals(groups, examAttemptItems) {
 }
 
 function topicPctOf(t) { return t.total ? Math.round((100 * t.correct) / t.total) : 0; }
+var ACCURACY_PASS_PCT = 70; // red/bold below this, green/bold at or above, on any per-topic accuracy row
+function accuracyRowClass(pct) { return pct < ACCURACY_PASS_PCT ? 'progress-row-low' : 'progress-row-good'; }
 
 var QUIZ_PROGRESS_TOPIC_COLUMNS = [['topic', 'Topic'], ['pct', 'Accuracy'], ['total', 'Questions']];
 var quizProgressGroupsCache = []; // userId -> group, so a per-user sort click can redraw without refetching
@@ -275,7 +278,8 @@ function quizProgressTableHtml(u) {
     if (av > bv) return 1 * sort.dir;
     return 0;
   }).map(function (t) {
-    return '<tr><td>' + t.topic + '</td><td>' + topicPctOf(t) + '%</td><td>' + t.total + '</td></tr>';
+    var pct = topicPctOf(t);
+    return '<tr class="' + accuracyRowClass(pct) + '"><td>' + t.topic + '</td><td>' + pct + '%</td><td>' + t.total + '</td></tr>';
   }).join('');
   var headerCells = QUIZ_PROGRESS_TOPIC_COLUMNS.map(function (c) {
     var indicator = sort.key === c[0] ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
@@ -346,7 +350,7 @@ function drawAccuracyTable() {
   var truncated = !accuracyExpanded && rows.length > ACCURACY_COLLAPSED_COUNT;
   var visible = truncated ? rows.slice(0, ACCURACY_COLLAPSED_COUNT) : rows;
   var body = visible.map(function (a) {
-    return '<tr><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + a.pct + '%</td><td>' + a.attempts + '</td></tr>';
+    return '<tr class="' + accuracyRowClass(a.pct) + '"><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + a.pct + '%</td><td>' + a.attempts + '</td></tr>';
   }).join('');
   var toggleHtml = rows.length > ACCURACY_COLLAPSED_COUNT
     ? '<button class="btn-secondary btn-sm" type="button" data-act="toggle-accuracy-topics">' +
