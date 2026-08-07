@@ -494,6 +494,22 @@ async function renderSettings() {
     '<button class="btn-primary btn-sm" data-act="save-alert-email">Save</button>' +
     '</div>';
 
+  var accuracyPassPct = parseInt(bySetting.progress_accuracy_pass_pct, 10);
+  var accuracyPassPctVal = Number.isFinite(accuracyPassPct) ? accuracyPassPct : 80;
+  var accuracyPassPctRow = '<div class="card price-row">' +
+    '<span class="price-row-label">Accuracy turns green at/above</span>' +
+    '<input type="number" step="1" min="0" max="100" class="accuracy-pass-pct-input" value="' + accuracyPassPctVal + '" placeholder="80">' +
+    '<button class="btn-primary btn-sm" data-act="save-accuracy-pass-pct">Save</button>' +
+    '</div>';
+
+  var coveragePassPct = parseInt(bySetting.progress_coverage_pass_pct, 10);
+  var coveragePassPctVal = Number.isFinite(coveragePassPct) ? coveragePassPct : 50;
+  var coveragePassPctRow = '<div class="card price-row">' +
+    '<span class="price-row-label">Coverage turns green at/above</span>' +
+    '<input type="number" step="1" min="0" max="100" class="coverage-pass-pct-input" value="' + coveragePassPctVal + '" placeholder="50">' +
+    '<button class="btn-primary btn-sm" data-act="save-coverage-pass-pct">Save</button>' +
+    '</div>';
+
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-grid">' +
     '<div class="settings-column">' +
@@ -518,6 +534,12 @@ async function renderSettings() {
     '<p class="muted page-intro-text">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
     'buys a course. Leave blank to turn alerts off.</p>' +
     alertEmailRow +
+    '</div>' +
+    '<div class="settings-column">' +
+    '<h3>Progress tab colors</h3>' +
+    '<p class="muted page-intro-text">Thresholds (%) for when the student\'s headline Accuracy and Coverage numbers on the ' +
+    'Progress tab show green (at/above) vs. red (below).</p>' +
+    accuracyPassPctRow + coveragePassPctRow +
     '</div>' +
     '</div>';
 }
@@ -859,6 +881,24 @@ appEl.addEventListener('click', async function (e) {
     await apiFetch('/console/settings', {
       method: 'POST',
       body: { key: 'admin_alert_email', value: alertEmailVal },
+    });
+    renderSettings();
+  } else if (act === 'save-accuracy-pass-pct') {
+    var accuracyPassPctInput = document.querySelector('.accuracy-pass-pct-input');
+    var accuracyPassPctVal = parseInt(accuracyPassPctInput.value, 10);
+    if (!Number.isFinite(accuracyPassPctVal) || accuracyPassPctVal < 0 || accuracyPassPctVal > 100) { alert('Enter a value between 0 and 100.'); return; }
+    await apiFetch('/console/settings', {
+      method: 'POST',
+      body: { key: 'progress_accuracy_pass_pct', value: String(accuracyPassPctVal) },
+    });
+    renderSettings();
+  } else if (act === 'save-coverage-pass-pct') {
+    var coveragePassPctInput = document.querySelector('.coverage-pass-pct-input');
+    var coveragePassPctVal = parseInt(coveragePassPctInput.value, 10);
+    if (!Number.isFinite(coveragePassPctVal) || coveragePassPctVal < 0 || coveragePassPctVal > 100) { alert('Enter a value between 0 and 100.'); return; }
+    await apiFetch('/console/settings', {
+      method: 'POST',
+      body: { key: 'progress_coverage_pass_pct', value: String(coveragePassPctVal) },
     });
     renderSettings();
   } else if (act === 'sort-accounts') {
