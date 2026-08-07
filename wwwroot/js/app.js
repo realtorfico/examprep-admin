@@ -273,7 +273,7 @@ var COVERAGE_PASS_PCT = 50; // same idea, separate threshold, for % of a topic's
 function accuracyRowClass(pct) { return pct < ACCURACY_PASS_PCT ? 'progress-row-low' : 'progress-row-good'; }
 function coverageClass(pct) { return pct < COVERAGE_PASS_PCT ? 'progress-row-low' : 'progress-row-good'; }
 
-var QUIZ_PROGRESS_TOPIC_COLUMNS = [['topic', 'Topic'], ['pct', 'Accuracy'], ['total', 'Questions'], ['coverage', 'Coverage']];
+var QUIZ_PROGRESS_TOPIC_COLUMNS = [['topic', 'Topic'], ['pct', 'Accuracy'], ['coverage', 'Coverage'], ['total', 'Questions']];
 var quizProgressGroupsCache = []; // userId -> group, so a per-user sort click can redraw without refetching
 var quizProgressTopicSort = {}; // userId -> { key, dir }, independent sort state per user's table
 
@@ -290,8 +290,8 @@ function quizProgressTableHtml(u) {
     var coverage = topicCoverageOf(t);
     // Coverage is its own cell-level color, independent of the row's accuracy-based color -- a
     // topic can be low-accuracy but well-covered, or vice versa, two separate signals.
-    return '<tr class="' + accuracyRowClass(pct) + '"><td>' + t.topic + '</td><td>' + pct + '%</td><td>' + t.total + '</td>' +
-      '<td><span class="' + coverageClass(coverage) + '">' + coverage + '%</span></td></tr>';
+    return '<tr class="' + accuracyRowClass(pct) + '"><td>' + t.topic + '</td><td>' + pct + '%</td>' +
+      '<td><span class="' + coverageClass(coverage) + '">' + coverage + '%</span></td><td>' + t.total + '</td></tr>';
   }).join('');
   var headerCells = QUIZ_PROGRESS_TOPIC_COLUMNS.map(function (c) {
     var indicator = sort.key === c[0] ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
