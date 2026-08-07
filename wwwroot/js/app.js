@@ -424,10 +424,9 @@ async function renderStats() {
 
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
-    '<div class="stats-grid stats-grid-quarter-half-quarter">' +
+    '<div class="stats-grid">' +
     '<div class="stats-column"><h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table></div>' +
     '<div class="stats-column"><h3>Accuracy by topic</h3><div id="accuracy-table-container"></div></div>' +
-    '<div class="stats-column"><h3>Resource consumption</h3>' + resourceEmpty + resourceUsersHtml + '</div>' +
     '</div>' +
     '<div class="stats-grid">' +
     '<div class="stats-column"><h3>User progress</h3>' +
@@ -437,7 +436,8 @@ async function renderStats() {
     '<p class="muted page-intro-text">Grouped by user, most recently active first. Expand a user to see each attempt; ' +
     'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
     examEmpty + examUsersHtml + '</div>' +
-    '</div>';
+    '</div>' +
+    '<div class="stats-column"><h3>Resource consumption</h3>' + resourceEmpty + resourceUsersHtml + '</div>';
   drawAccuracyTable();
 }
 
