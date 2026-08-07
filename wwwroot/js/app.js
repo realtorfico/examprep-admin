@@ -301,8 +301,6 @@ function quizProgressTableHtml(u) {
 }
 
 function renderQuizProgressUserGroup(u) {
-  var who = u.buyerEmail || u.code || 'Unknown user';
-  var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
   var pct = u.total ? Math.round((100 * u.correct) / u.total) : 0;
   var coverage = u.topicTotal ? Math.round((100 * u.seen) / u.topicTotal) : 0;
   var examPct = u.examTotal ? Math.round((100 * u.examCorrect) / u.examTotal) : 0;
@@ -311,9 +309,9 @@ function renderQuizProgressUserGroup(u) {
     : 'Mock exam: no attempts yet';
 
   return '<details class="card admin-user-group">' +
-    '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — Overall: ' + u.total +
-    ' answered, <span class="' + accuracyRowClass(pct) + '">' + pct + '% accuracy</span>, ' +
-    '<span class="' + coverageClass(coverage) + '">' + coverage + '% coverage</span></summary>' +
+    '<summary><strong>' + (u.code || 'Unknown code') + '</strong> - ' + u.examType + ' - (' +
+    '<span class="' + accuracyRowClass(pct) + '">' + pct + '% Accuracy</span>, ' +
+    '<span class="' + coverageClass(coverage) + '">' + coverage + '% Coverage</span>)</summary>' +
     '<p class="muted admin-user-subline">' + examLine + '</p>' +
     '<div id="quiz-progress-table-' + u.userId + '">' + quizProgressTableHtml(u) + '</div>' +
     '</details>';
