@@ -268,9 +268,9 @@ function attachExamTotals(groups, examAttemptItems) {
 
 function topicPctOf(t) { return t.total ? Math.round((100 * t.correct) / t.total) : 0; }
 function topicCoverageOf(t) { return t.topicTotal ? Math.round((100 * t.seen) / t.topicTotal) : 0; }
-var ACCURACY_PASS_PCT = 70; // red/bold below this, green/bold at or above, on any per-topic accuracy row
+var accuracyPassPct = 70; // overwritten from /console/quiz-progress with the admin-configured value
 var coveragePassPct = 50; // overwritten from /console/quiz-progress with the admin-configured value
-function accuracyRowClass(pct) { return pct < ACCURACY_PASS_PCT ? 'progress-row-low' : 'progress-row-good'; }
+function accuracyRowClass(pct) { return pct < accuracyPassPct ? 'progress-row-low' : 'progress-row-good'; }
 function coverageClass(pct) { return pct < coveragePassPct ? 'progress-row-low' : 'progress-row-good'; }
 
 var QUIZ_PROGRESS_TOPIC_COLUMNS = [['topic', 'Topic'], ['pct', 'Accuracy'], ['coverage', 'Coverage'], ['total', 'Questions']];
@@ -456,6 +456,7 @@ async function renderStats() {
     apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts'), apiFetch('/console/quiz-progress'),
   ]);
   var s = results[0], resourceProgress = results[1], examAttempts = results[2], quizProgress = results[3];
+  if (typeof quizProgress.accuracyPassPct === 'number') accuracyPassPct = quizProgress.accuracyPassPct;
   if (typeof quizProgress.coveragePassPct === 'number') coveragePassPct = quizProgress.coveragePassPct;
   if (typeof quizProgress.leaderboardMinQuestions === 'number') leaderboardMinQuestions = quizProgress.leaderboardMinQuestions;
   var codeRows = s.codes.map(function (c) {
