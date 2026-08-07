@@ -231,13 +231,18 @@ function groupQuizProgressByUser(items) {
   var byUser = {}, order = [];
   items.forEach(function (r) {
     if (!byUser[r.user_id]) {
-      byUser[r.user_id] = { userId: r.user_id, code: r.code, buyerEmail: r.buyer_email, examType: r.exam_type, topics: [], total: 0, correct: 0, examTotal: 0, examCorrect: 0 };
+      byUser[r.user_id] = {
+        userId: r.user_id, code: r.code, buyerEmail: r.buyer_email, examType: r.exam_type, topics: [],
+        total: 0, correct: 0, examTotal: 0, examCorrect: 0, seen: 0, topicTotal: 0,
+      };
       order.push(r.user_id);
     }
     var u = byUser[r.user_id];
-    u.topics.push({ topic: r.topic, total: r.total, correct: r.correct });
+    u.topics.push({ topic: r.topic, total: r.total, correct: r.correct, seen: r.seen, topicTotal: r.topicTotal });
     u.total += r.total;
     u.correct += r.correct;
+    u.seen += r.seen;
+    u.topicTotal += r.topicTotal;
   });
   var grouped = order.map(function (id) { return byUser[id]; });
   grouped.sort(function (a, b) { return b.total - a.total; });
@@ -262,24 +267,31 @@ function attachExamTotals(groups, examAttemptItems) {
 }
 
 function topicPctOf(t) { return t.total ? Math.round((100 * t.correct) / t.total) : 0; }
+function topicCoverageOf(t) { return t.topicTotal ? Math.round((100 * t.seen) / t.topicTotal) : 0; }
 var ACCURACY_PASS_PCT = 70; // red/bold below this, green/bold at or above, on any per-topic accuracy row
+var COVERAGE_PASS_PCT = 50; // same idea, separate threshold, for % of a topic's questions ever attempted
 function accuracyRowClass(pct) { return pct < ACCURACY_PASS_PCT ? 'progress-row-low' : 'progress-row-good'; }
+function coverageClass(pct) { return pct < COVERAGE_PASS_PCT ? 'progress-row-low' : 'progress-row-good'; }
 
-var QUIZ_PROGRESS_TOPIC_COLUMNS = [['topic', 'Topic'], ['pct', 'Accuracy'], ['total', 'Questions']];
+var QUIZ_PROGRESS_TOPIC_COLUMNS = [['topic', 'Topic'], ['pct', 'Accuracy'], ['total', 'Questions'], ['coverage', 'Coverage']];
 var quizProgressGroupsCache = []; // userId -> group, so a per-user sort click can redraw without refetching
 var quizProgressTopicSort = {}; // userId -> { key, dir }, independent sort state per user's table
 
 function quizProgressTableHtml(u) {
   var sort = quizProgressTopicSort[u.userId] || (quizProgressTopicSort[u.userId] = { key: 'topic', dir: 1 });
   var rows = u.topics.slice().sort(function (a, b) {
-    var av = sort.key === 'topic' ? a.topic.toLowerCase() : sort.key === 'pct' ? topicPctOf(a) : a.total;
-    var bv = sort.key === 'topic' ? b.topic.toLowerCase() : sort.key === 'pct' ? topicPctOf(b) : b.total;
+    var av = sort.key === 'topic' ? a.topic.toLowerCase() : sort.key === 'pct' ? topicPctOf(a) : sort.key === 'coverage' ? topicCoverageOf(a) : a.total;
+    var bv = sort.key === 'topic' ? b.topic.toLowerCase() : sort.key === 'pct' ? topicPctOf(b) : sort.key === 'coverage' ? topicCoverageOf(b) : b.total;
     if (av < bv) return -1 * sort.dir;
     if (av > bv) return 1 * sort.dir;
     return 0;
   }).map(function (t) {
     var pct = topicPctOf(t);
-    return '<tr class="' + accuracyRowClass(pct) + '"><td>' + t.topic + '</td><td>' + pct + '%</td><td>' + t.total + '</td></tr>';
+    var coverage = topicCoverageOf(t);
+    // Coverage is its own cell-level color, independent of the row's accuracy-based color -- a
+    // topic can be low-accuracy but well-covered, or vice versa, two separate signals.
+    return '<tr class="' + accuracyRowClass(pct) + '"><td>' + t.topic + '</td><td>' + pct + '%</td><td>' + t.total + '</td>' +
+      '<td><span class="' + coverageClass(coverage) + '">' + coverage + '%</span></td></tr>';
   }).join('');
   var headerCells = QUIZ_PROGRESS_TOPIC_COLUMNS.map(function (c) {
     var indicator = sort.key === c[0] ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
@@ -292,6 +304,7 @@ function renderQuizProgressUserGroup(u) {
   var who = u.buyerEmail || u.code || 'Unknown user';
   var whoSub = u.buyerEmail && u.code ? ' <span class="muted">(' + u.code + ')</span>' : '';
   var pct = u.total ? Math.round((100 * u.correct) / u.total) : 0;
+  var coverage = u.topicTotal ? Math.round((100 * u.seen) / u.topicTotal) : 0;
   var examPct = u.examTotal ? Math.round((100 * u.examCorrect) / u.examTotal) : 0;
   var examLine = u.examTotal
     ? 'Mock exam: ' + u.examCorrect + '/' + u.examTotal + ' (' + examPct + '%)'
@@ -299,7 +312,7 @@ function renderQuizProgressUserGroup(u) {
 
   return '<details class="card admin-user-group">' +
     '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — Overall: ' + u.total +
-    ' answered, ' + pct + '% accuracy</summary>' +
+    ' answered, ' + pct + '% accuracy, <span class="' + coverageClass(coverage) + '">' + coverage + '% coverage</span></summary>' +
     '<p class="muted admin-user-subline">' + examLine + '</p>' +
     '<div id="quiz-progress-table-' + u.userId + '">' + quizProgressTableHtml(u) + '</div>' +
     '</details>';
