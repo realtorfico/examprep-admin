@@ -349,28 +349,57 @@ appEl.addEventListener('toggle', function (e) {
   loadExamAttemptReview(el.getAttribute('data-attempt-id'));
 }, true);
 
+// Grouped per-track (exam_type) rather than one flat table with an "Exam" column repeating the
+// same value on every row -- accuracy/coverage should always read within one track's context, and
+// once DRE/MLO have real content a flat list would only get more confusing to scan. Each track is
+// its own collapsible group (closed by default, like the User progress cards below it), with
+// independent sort/show-all state, mirroring the per-user topic tables' own pattern.
 var ACCURACY_NUMERIC_KEYS = new Set(['pct', 'attempts']);
-var ACCURACY_COLUMNS = [['exam_type', 'Exam'], ['topic', 'Topic'], ['pct', '% correct'], ['attempts', 'Attempts']];
+var ACCURACY_TRACK_COLUMNS = [['topic', 'Topic'], ['pct', '% correct'], ['attempts', 'Attempts']];
 var statsAccuracyCache = [];
-var accuracySort = { key: 'exam_type', dir: 1 }; // matches the old default: API order, grouped by exam
+var accuracySortByTrack = {}; // examType -> { key, dir }
+var accuracyExpandedByTrack = {}; // examType -> bool (show-all topics within that track)
 var ACCURACY_COLLAPSED_COUNT = 8;
-var accuracyExpanded = false;
+
+function groupAccuracyByTrack(rows) {
+  var byTrack = {}, order = [];
+  rows.forEach(function (r) {
+    if (!byTrack[r.exam_type]) { byTrack[r.exam_type] = []; order.push(r.exam_type); }
+    byTrack[r.exam_type].push(r);
+  });
+  return order.map(function (examType) { return { examType: examType, topics: byTrack[examType] }; });
+}
+
+function accuracyTrackTableHtml(track) {
+  var sort = accuracySortByTrack[track.examType] || (accuracySortByTrack[track.examType] = { key: 'topic', dir: 1 });
+  var sorted = sortTableRows(track.topics, sort, ACCURACY_NUMERIC_KEYS);
+  var expanded = accuracyExpandedByTrack[track.examType];
+  var truncated = !expanded && sorted.length > ACCURACY_COLLAPSED_COUNT;
+  var visible = truncated ? sorted.slice(0, ACCURACY_COLLAPSED_COUNT) : sorted;
+  var body = visible.map(function (a) {
+    return '<tr class="' + accuracyRowClass(a.pct) + '"><td>' + a.topic + '</td><td>' + a.pct + '%</td><td>' + a.attempts + '</td></tr>';
+  }).join('');
+  var headerRow = '<tr>' + ACCURACY_TRACK_COLUMNS.map(function (c) {
+    var indicator = sort.key === c[0] ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return '<th data-act="sort-accuracy" data-track="' + track.examType + '" data-key="' + c[0] + '">' + c[1] + indicator + '</th>';
+  }).join('') + '</tr>';
+  var toggleHtml = sorted.length > ACCURACY_COLLAPSED_COUNT
+    ? '<button class="btn-secondary btn-sm" type="button" data-act="toggle-accuracy-topics" data-track="' + track.examType + '">' +
+      (truncated ? 'Show all ' + sorted.length + ' ▾' : 'Show fewer ▴') + '</button>'
+    : '';
+  return '<table><thead>' + headerRow + '</thead><tbody>' + body + '</tbody></table>' + toggleHtml;
+}
 
 function drawAccuracyTable() {
   var container = document.getElementById('accuracy-table-container');
   if (!container) return;
-  var rows = sortTableRows(statsAccuracyCache, accuracySort, ACCURACY_NUMERIC_KEYS);
-  var truncated = !accuracyExpanded && rows.length > ACCURACY_COLLAPSED_COUNT;
-  var visible = truncated ? rows.slice(0, ACCURACY_COLLAPSED_COUNT) : rows;
-  var body = visible.map(function (a) {
-    return '<tr class="' + accuracyRowClass(a.pct) + '"><td>' + a.exam_type + '</td><td>' + a.topic + '</td><td>' + a.pct + '%</td><td>' + a.attempts + '</td></tr>';
+  var tracks = groupAccuracyByTrack(statsAccuracyCache);
+  container.innerHTML = tracks.map(function (track) {
+    return '<details class="card admin-user-group">' +
+      '<summary><strong>' + track.examType + '</strong> — ' + track.topics.length + ' topic' + (track.topics.length === 1 ? '' : 's') + '</summary>' +
+      '<div id="accuracy-track-table-' + track.examType + '">' + accuracyTrackTableHtml(track) + '</div>' +
+      '</details>';
   }).join('');
-  var toggleHtml = rows.length > ACCURACY_COLLAPSED_COUNT
-    ? '<button class="btn-secondary btn-sm" type="button" data-act="toggle-accuracy-topics">' +
-      (truncated ? 'Show all ' + rows.length + ' ▾' : 'Show fewer ▴') + '</button>'
-    : '';
-  container.innerHTML = '<table><thead>' + sortableHeaderRow(ACCURACY_COLUMNS, accuracySort, 'sort-accuracy') +
-    '</thead><tbody>' + body + '</tbody></table>' + toggleHtml;
 }
 
 async function renderStats() {
@@ -843,13 +872,20 @@ appEl.addEventListener('click', async function (e) {
     else { referralsSort.key = referralsSortKey; referralsSort.dir = 1; }
     drawReferralsTable();
   } else if (act === 'sort-accuracy') {
+    var accTrack = el.getAttribute('data-track');
     var accuracySortKey = el.getAttribute('data-key');
-    if (accuracySort.key === accuracySortKey) accuracySort.dir *= -1;
-    else { accuracySort.key = accuracySortKey; accuracySort.dir = 1; }
-    drawAccuracyTable();
+    var accSort = accuracySortByTrack[accTrack] || (accuracySortByTrack[accTrack] = { key: 'topic', dir: 1 });
+    if (accSort.key === accuracySortKey) accSort.dir *= -1;
+    else { accSort.key = accuracySortKey; accSort.dir = 1; }
+    var accGroup = groupAccuracyByTrack(statsAccuracyCache).filter(function (t) { return t.examType === accTrack; })[0];
+    var accContainer = document.getElementById('accuracy-track-table-' + accTrack);
+    if (accContainer && accGroup) accContainer.innerHTML = accuracyTrackTableHtml(accGroup);
   } else if (act === 'toggle-accuracy-topics') {
-    accuracyExpanded = !accuracyExpanded;
-    drawAccuracyTable();
+    var toggleTrack = el.getAttribute('data-track');
+    accuracyExpandedByTrack[toggleTrack] = !accuracyExpandedByTrack[toggleTrack];
+    var toggleGroup = groupAccuracyByTrack(statsAccuracyCache).filter(function (t) { return t.examType === toggleTrack; })[0];
+    var toggleContainer = document.getElementById('accuracy-track-table-' + toggleTrack);
+    if (toggleContainer && toggleGroup) toggleContainer.innerHTML = accuracyTrackTableHtml(toggleGroup);
   } else if (act === 'sort-quiz-progress-topics') {
     var qpUserId = el.getAttribute('data-user-id');
     var qpKey = el.getAttribute('data-key');
