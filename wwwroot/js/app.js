@@ -318,6 +318,54 @@ function renderQuizProgressUserGroup(u) {
     '</details>';
 }
 
+// Leaderboard -- top 3 by accuracy, top 3 by coverage, per track, built entirely from the same
+// quizProgressGroupsCache the "User progress" section above already has (no separate fetch needed,
+// unlike the public site which needs its own /leaderboard endpoint to avoid exposing every user's
+// data to a student's browser). Only users who've answered at least leaderboardMinQuestions
+// qualify. Descending-only sort, no ascending direction.
+var leaderboardMinQuestions = 20; // overwritten from /console/quiz-progress
+var leaderboardSortKeyByTrack = {}; // examType -> 'accuracy' | 'coverage'
+
+function groupLeaderboardByTrack(groups) {
+  var byTrack = {}, order = [];
+  groups.forEach(function (u) {
+    if (u.total < leaderboardMinQuestions) return;
+    if (!byTrack[u.examType]) { byTrack[u.examType] = []; order.push(u.examType); }
+    byTrack[u.examType].push({
+      userId: u.userId, who: u.buyerEmail || u.code || 'Unknown user',
+      total: u.total, accuracy: u.total ? Math.round((100 * u.correct) / u.total) : 0,
+      coverage: u.topicTotal ? Math.round((100 * u.seen) / u.topicTotal) : 0,
+    });
+  });
+  return order.map(function (examType) {
+    var users = byTrack[examType];
+    var topByAccuracy = users.slice().sort(function (a, b) { return b.accuracy - a.accuracy; }).slice(0, 3);
+    var topByCoverage = users.slice().sort(function (a, b) { return b.coverage - a.coverage; }).slice(0, 3);
+    var seenIds = {};
+    var combined = topByAccuracy.concat(topByCoverage).filter(function (u) {
+      if (seenIds[u.userId]) return false;
+      seenIds[u.userId] = true;
+      return true;
+    });
+    return { examType: examType, users: combined };
+  });
+}
+
+function leaderboardTrackTableHtml(track) {
+  var key = leaderboardSortKeyByTrack[track.examType] || (leaderboardSortKeyByTrack[track.examType] = 'accuracy');
+  if (!track.users.length) return '<p class="muted">No one on this track has answered at least ' + leaderboardMinQuestions + ' questions yet.</p>';
+  var rows = track.users.slice().sort(function (a, b) { return b[key] - a[key]; }).slice(0, 3).map(function (u) {
+    return '<tr><td>' + u.who + '</td><td>' + u.accuracy + '%</td><td>' + u.coverage + '%</td><td>' + u.total + '</td></tr>';
+  }).join('');
+  var arrow = function (k) { return key === k ? ' ▼' : ''; };
+  return '<table class="admin-user-table"><thead><tr>' +
+    '<th>User</th>' +
+    '<th data-act="sort-leaderboard" data-track="' + track.examType + '" data-key="accuracy">Accuracy' + arrow('accuracy') + '</th>' +
+    '<th data-act="sort-leaderboard" data-track="' + track.examType + '" data-key="coverage">Coverage' + arrow('coverage') + '</th>' +
+    '<th>Questions</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
 var examAttemptDetailCache = {}; // attemptId -> already-fetched review, avoids refetching on re-toggle
 
 async function loadExamAttemptReview(attemptId) {
@@ -409,6 +457,7 @@ async function renderStats() {
   ]);
   var s = results[0], resourceProgress = results[1], examAttempts = results[2], quizProgress = results[3];
   if (typeof quizProgress.coveragePassPct === 'number') coveragePassPct = quizProgress.coveragePassPct;
+  if (typeof quizProgress.leaderboardMinQuestions === 'number') leaderboardMinQuestions = quizProgress.leaderboardMinQuestions;
   var codeRows = s.codes.map(function (c) {
     return '<tr><td>' + c.exam_type + '</td><td>' + c.status + '</td><td>' + c.n + '</td></tr>';
   }).join('');
@@ -422,6 +471,13 @@ async function renderStats() {
   quizProgressGroupsCache = attachExamTotals(groupQuizProgressByUser(quizProgress.items), examAttempts.items);
   var quizUsersHtml = quizProgressGroupsCache.map(renderQuizProgressUserGroup).join('');
   var quizEmpty = quizProgress.items.length ? '' : '<p class="muted">No quiz activity yet.</p>';
+  var leaderboardTracksHtml = groupLeaderboardByTrack(quizProgressGroupsCache).map(function (track) {
+    return '<details class="card admin-user-group">' +
+      '<summary><strong>' + track.examType + '</strong></summary>' +
+      '<div id="leaderboard-table-' + track.examType + '">' + leaderboardTrackTableHtml(track) + '</div>' +
+      '</details>';
+  }).join('');
+  var leaderboardEmpty = quizProgressGroupsCache.length ? '' : '<p class="muted">No quiz activity yet.</p>';
 
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
@@ -438,6 +494,10 @@ async function renderStats() {
     'expand an attempt for the full question-by-question review. Capped at the 1000 most recent attempts.</p>' +
     examEmpty + examUsersHtml + '</div>' +
     '</div>' +
+    '<div class="stats-column"><h3>Leaderboard</h3>' +
+    '<p class="muted page-intro-text">Top 3 by accuracy and by coverage, per track, among users who\'ve answered at least ' +
+    leaderboardMinQuestions + ' questions.</p>' +
+    leaderboardEmpty + leaderboardTracksHtml + '</div>' +
     '<div class="stats-column"><h3>Resource consumption</h3>' + resourceEmpty + resourceUsersHtml + '</div>';
   drawAccuracyTable();
 }
@@ -936,6 +996,12 @@ appEl.addEventListener('click', async function (e) {
     var qpContainer = document.getElementById('quiz-progress-table-' + qpUserId);
     var qpGroup = quizProgressGroupsCache.filter(function (g) { return g.userId === qpUserId; })[0];
     if (qpContainer && qpGroup) qpContainer.innerHTML = quizProgressTableHtml(qpGroup);
+  } else if (act === 'sort-leaderboard') {
+    var lbTrack = el.getAttribute('data-track');
+    leaderboardSortKeyByTrack[lbTrack] = el.getAttribute('data-key');
+    var lbContainer = document.getElementById('leaderboard-table-' + lbTrack);
+    var lbGroup = groupLeaderboardByTrack(quizProgressGroupsCache).filter(function (t) { return t.examType === lbTrack; })[0];
+    if (lbContainer && lbGroup) lbContainer.innerHTML = leaderboardTrackTableHtml(lbGroup);
   } else if (act === 'toggle-theme') {
     var nextTheme = el.getAttribute('data-next');
     var local = loadLocalPrefs();
