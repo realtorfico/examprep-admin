@@ -312,7 +312,8 @@ function renderQuizProgressUserGroup(u) {
 
   return '<details class="card admin-user-group">' +
     '<summary><strong>' + who + '</strong>' + whoSub + ' — ' + u.examType + ' — Overall: ' + u.total +
-    ' answered, ' + pct + '% accuracy, <span class="' + coverageClass(coverage) + '">' + coverage + '% coverage</span></summary>' +
+    ' answered, <span class="' + accuracyRowClass(pct) + '">' + pct + '% accuracy</span>, ' +
+    '<span class="' + coverageClass(coverage) + '">' + coverage + '% coverage</span></summary>' +
     '<p class="muted admin-user-subline">' + examLine + '</p>' +
     '<div id="quiz-progress-table-' + u.userId + '">' + quizProgressTableHtml(u) + '</div>' +
     '</details>';
