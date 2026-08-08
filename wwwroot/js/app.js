@@ -81,6 +81,7 @@ function promotionFormHtml() {
     '<option value="flat_cents"' + (p.discount_type === 'flat_cents' ? ' selected' : '') + '>Flat amount off ($)</option>' +
     '</select></label>' +
     '<label>Discount value (percent 1-100, or dollars if flat amount)<input type="number" name="discountValue" min="0" step="0.01" value="' + discountValueDisplay + '"></label>' +
+    '<label>Require email domain (optional — e.g. .edu for a student discount)<input type="text" name="requiredEmailDomain" placeholder=".edu" value="' + escapeHtml(p.required_email_domain || '') + '"></label>' +
     '<label class="promotion-active-toggle"><input type="checkbox" name="active"' + (p.active ? ' checked' : '') + '> Active</label>' +
     '<div class="progress-reset-actions">' +
     '<button class="btn-primary" type="submit">Save</button>' +
@@ -92,6 +93,7 @@ function promotionRowHtml(p, index, total) {
   var codeInfo = p.promo_code
     ? '<span class="badge">' + escapeHtml(p.promo_code) + '</span> ' +
       (p.discount_type === 'flat_cents' ? '$' + (p.discount_value / 100).toFixed(2) + ' off' : p.discount_value + '% off') +
+      (p.required_email_domain ? ' · requires ' + escapeHtml(p.required_email_domain) + ' email' : '') +
       ' · ' + p.redeemed_count + ' redeemed'
     : '<span class="muted">Message only, no discount</span>';
   return '<div class="card promotion-row">' +
@@ -957,6 +959,7 @@ appEl.addEventListener('submit', async function (e) {
       // Flat amounts are entered in dollars for admin convenience -- stored in cents like every
       // other price in this app.
       discountValue: promoCode ? (discountType === 'flat_cents' ? Math.round((rawDiscountValue || 0) * 100) : Math.round(rawDiscountValue || 0)) : undefined,
+      requiredEmailDomain: pf.requiredEmailDomain.value.trim() || undefined,
       active: pf.active.checked,
     };
     var id = pf.getAttribute('data-id');
