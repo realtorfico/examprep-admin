@@ -70,9 +70,10 @@ function promotionFormHtml() {
     '<label>Button label (optional)<input type="text" name="ctaLabel" value="' + escapeHtml(p.cta_label || '') + '"></label>' +
     '<label>Button link (optional)<input type="text" name="ctaUrl" placeholder="https://…" value="' + escapeHtml(p.cta_url || '') + '"></label>' +
     '<label>Where it shows<select name="placement">' +
-    ['home', 'checkout', 'both'].map(function (pl) {
+    ['home', 'checkout', 'refer', 'both'].map(function (pl) {
       return '<option value="' + pl + '"' + (p.placement === pl ? ' selected' : '') + '>' +
-        (pl === 'home' ? 'Home page only' : pl === 'checkout' ? 'Checkout page only' : 'Both') + '</option>';
+        (pl === 'home' ? 'Home page only' : pl === 'checkout' ? 'Checkout page only' :
+         pl === 'refer' ? 'Refer-a-friend page only' : 'Both (home + checkout)') + '</option>';
     }).join('') + '</select></label>' +
     '<p class="muted page-intro-text">Leave both the discount value and required email domain blank for a message-only ' +
     'promo with no real discount. Leave just the code blank but set a required email domain (e.g. .edu) to auto-apply ' +
@@ -88,6 +89,13 @@ function promotionFormHtml() {
     '<label>Require email domain (optional — e.g. .edu for a student discount)<input type="text" name="requiredEmailDomain" placeholder=".edu" value="' + escapeHtml(p.required_email_domain || '') + '"></label>' +
     '<label class="promotion-active-toggle"><input type="checkbox" name="requireEmailVerification"' + (p.require_email_verification ? ' checked' : '') + '> ' +
     'Require email verification (sends a one-time confirmation link before the discount applies — recommended with a domain restriction, since that alone only checks the typed string, not real ownership)</label>' +
+    '<p class="muted page-intro-text">A points multiplier is a completely different effect from the discount above — ' +
+    'redeemed on the Refer-a-Friend page (not checkout), it multiplies future referral points on that person\'s account ' +
+    'for a set number of days. There\'s no domain to check for something like "retired professional," so the promo code ' +
+    'itself (plus optional email verification above) is the only real gate — keep it semi-private and hand it out directly ' +
+    'rather than advertising it broadly, if that matters for this promo.</p>' +
+    '<label>Points multiplier (optional — e.g. 2 to double referral points)<input type="number" name="pointsMultiplier" min="2" step="1" value="' + (p.points_multiplier || '') + '"></label>' +
+    '<label>Multiplier lasts (days, once redeemed)<input type="number" name="pointsMultiplierDays" min="1" step="1" placeholder="30" value="' + (p.points_multiplier_days || '') + '"></label>' +
     '<label class="promotion-active-toggle"><input type="checkbox" name="active"' + (p.active ? ' checked' : '') + '> Active</label>' +
     '<div class="progress-reset-actions">' +
     '<button class="btn-primary" type="submit">Save</button>' +
@@ -97,13 +105,21 @@ function promotionFormHtml() {
 
 function promotionRowHtml(p, index, total) {
   var discountLabel = p.discount_type === 'flat_cents' ? '$' + (p.discount_value / 100).toFixed(2) + ' off' : p.discount_value + '% off';
-  var codeInfo = p.discount_value
-    ? (p.promo_code ? '<span class="badge">' + escapeHtml(p.promo_code) + '</span> ' : '<span class="badge">No code — auto-applies</span> ') +
+  var codeInfo;
+  if (p.discount_value) {
+    codeInfo = (p.promo_code ? '<span class="badge">' + escapeHtml(p.promo_code) + '</span> ' : '<span class="badge">No code — auto-applies</span> ') +
       discountLabel +
       (p.required_email_domain ? ' · requires ' + escapeHtml(p.required_email_domain) + ' email' : '') +
       (p.require_email_verification ? ' (verified)' : '') +
-      ' · ' + p.redeemed_count + ' redeemed'
-    : '<span class="muted">Message only, no discount</span>';
+      ' · ' + p.redeemed_count + ' redeemed';
+  } else if (p.points_multiplier) {
+    codeInfo = '<span class="badge">' + escapeHtml(p.promo_code || '—') + '</span> ' +
+      p.points_multiplier + '× points for ' + (p.points_multiplier_days || 0) + ' days' +
+      (p.require_email_verification ? ' (verified)' : '') +
+      ' · ' + p.redeemed_count + ' redeemed';
+  } else {
+    codeInfo = '<span class="muted">Message only, no discount</span>';
+  }
   return '<div class="card promotion-row">' +
     '<div class="promotion-row-top">' +
     '<strong>' + escapeHtml(p.title) + '</strong> ' +
@@ -970,6 +986,8 @@ appEl.addEventListener('submit', async function (e) {
       discountValue: rawDiscountValue > 0 ? (discountType === 'flat_cents' ? Math.round(rawDiscountValue * 100) : Math.round(rawDiscountValue)) : undefined,
       requiredEmailDomain: pf.requiredEmailDomain.value.trim() || undefined,
       requireEmailVerification: pf.requireEmailVerification.checked,
+      pointsMultiplier: pf.pointsMultiplier.value ? parseInt(pf.pointsMultiplier.value, 10) : undefined,
+      pointsMultiplierDays: pf.pointsMultiplierDays.value ? parseInt(pf.pointsMultiplierDays.value, 10) : undefined,
       active: pf.active.checked,
     };
     var id = pf.getAttribute('data-id');
