@@ -74,8 +74,12 @@ function promotionFormHtml() {
       return '<option value="' + pl + '"' + (p.placement === pl ? ' selected' : '') + '>' +
         (pl === 'home' ? 'Home page only' : pl === 'checkout' ? 'Checkout page only' : 'Both') + '</option>';
     }).join('') + '</select></label>' +
-    '<p class="muted page-intro-text">Leave the code blank for a message-only promo with no real discount.</p>' +
-    '<label>Promo code (optional)<input type="text" name="promoCode" placeholder="e.g. SAVE20" value="' + escapeHtml(p.promo_code || '') + '"></label>' +
+    '<p class="muted page-intro-text">Leave both the discount value and required email domain blank for a message-only ' +
+    'promo with no real discount. Leave just the code blank but set a required email domain (e.g. .edu) to auto-apply ' +
+    'the discount whenever a matching email is entered at checkout — no code for the buyer to type, since the domain ' +
+    '(and verification, if enabled below) is the real gate anyway.</p>' +
+    '<label>Promo code (optional — leave blank for a domain-gated discount to auto-apply with no code)' +
+    '<input type="text" name="promoCode" placeholder="e.g. SAVE20" value="' + escapeHtml(p.promo_code || '') + '"></label>' +
     '<label>Discount type<select name="discountType">' +
     '<option value="percent"' + (p.discount_type !== 'flat_cents' ? ' selected' : '') + '>Percent off</option>' +
     '<option value="flat_cents"' + (p.discount_type === 'flat_cents' ? ' selected' : '') + '>Flat amount off ($)</option>' +
@@ -92,9 +96,10 @@ function promotionFormHtml() {
 }
 
 function promotionRowHtml(p, index, total) {
-  var codeInfo = p.promo_code
-    ? '<span class="badge">' + escapeHtml(p.promo_code) + '</span> ' +
-      (p.discount_type === 'flat_cents' ? '$' + (p.discount_value / 100).toFixed(2) + ' off' : p.discount_value + '% off') +
+  var discountLabel = p.discount_type === 'flat_cents' ? '$' + (p.discount_value / 100).toFixed(2) + ' off' : p.discount_value + '% off';
+  var codeInfo = p.discount_value
+    ? (p.promo_code ? '<span class="badge">' + escapeHtml(p.promo_code) + '</span> ' : '<span class="badge">No code — auto-applies</span> ') +
+      discountLabel +
       (p.required_email_domain ? ' · requires ' + escapeHtml(p.required_email_domain) + ' email' : '') +
       (p.require_email_verification ? ' (verified)' : '') +
       ' · ' + p.redeemed_count + ' redeemed'
@@ -960,8 +965,9 @@ appEl.addEventListener('submit', async function (e) {
       promoCode: promoCode || undefined,
       discountType: discountType,
       // Flat amounts are entered in dollars for admin convenience -- stored in cents like every
-      // other price in this app.
-      discountValue: promoCode ? (discountType === 'flat_cents' ? Math.round((rawDiscountValue || 0) * 100) : Math.round(rawDiscountValue || 0)) : undefined,
+      // other price in this app. No longer gated on a code being present -- a discount can now
+      // auto-apply from a matching email alone (see requiredEmailDomain).
+      discountValue: rawDiscountValue > 0 ? (discountType === 'flat_cents' ? Math.round(rawDiscountValue * 100) : Math.round(rawDiscountValue)) : undefined,
       requiredEmailDomain: pf.requiredEmailDomain.value.trim() || undefined,
       requireEmailVerification: pf.requireEmailVerification.checked,
       active: pf.active.checked,
