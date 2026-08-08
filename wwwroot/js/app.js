@@ -38,11 +38,95 @@ function renderTopControls() {
     '</div>';
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+}
+
 function renderTabs(active) {
-  var tabs = [['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers']];
+  var tabs = [['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
+}
+
+// ---- Promotions -------------------------------------------------------
+// Admin-managed list of promo banners shown on the public site's home and/or checkout pages.
+// A promo with a code is a real discount applied server-side at checkout (see the Worker's
+// quoteCheckout) -- one with no code is purely a marketing message. Reorder is up/down-arrow
+// swap-with-neighbor rather than drag-and-drop, to keep this simple.
+
+var promotionsCache = [];
+var promotionFormState = null; // null (closed) | 'new' | the promotion object being edited
+
+function promotionFormHtml() {
+  if (!promotionFormState) return '';
+  var editing = promotionFormState !== 'new';
+  var p = editing ? promotionFormState : {};
+  var discountValueDisplay = p.discount_type === 'flat_cents' ? (p.discount_value ? p.discount_value / 100 : '') : (p.discount_value || '');
+  return '<form class="card promotion-form" data-act="save-promotion" data-id="' + (editing ? p.id : '') + '">' +
+    '<h3>' + (editing ? 'Edit promotion' : 'Add promotion') + '</h3>' +
+    '<label>Title<input type="text" name="title" required value="' + escapeHtml(p.title || '') + '"></label>' +
+    '<label>Message<textarea name="body" required rows="2">' + escapeHtml(p.body || '') + '</textarea></label>' +
+    '<label>Button label (optional)<input type="text" name="ctaLabel" value="' + escapeHtml(p.cta_label || '') + '"></label>' +
+    '<label>Button link (optional)<input type="text" name="ctaUrl" placeholder="https://…" value="' + escapeHtml(p.cta_url || '') + '"></label>' +
+    '<label>Where it shows<select name="placement">' +
+    ['home', 'checkout', 'both'].map(function (pl) {
+      return '<option value="' + pl + '"' + (p.placement === pl ? ' selected' : '') + '>' +
+        (pl === 'home' ? 'Home page only' : pl === 'checkout' ? 'Checkout page only' : 'Both') + '</option>';
+    }).join('') + '</select></label>' +
+    '<p class="muted page-intro-text">Leave the code blank for a message-only promo with no real discount.</p>' +
+    '<label>Promo code (optional)<input type="text" name="promoCode" placeholder="e.g. SAVE20" value="' + escapeHtml(p.promo_code || '') + '"></label>' +
+    '<label>Discount type<select name="discountType">' +
+    '<option value="percent"' + (p.discount_type !== 'flat_cents' ? ' selected' : '') + '>Percent off</option>' +
+    '<option value="flat_cents"' + (p.discount_type === 'flat_cents' ? ' selected' : '') + '>Flat amount off ($)</option>' +
+    '</select></label>' +
+    '<label>Discount value (percent 1-100, or dollars if flat amount)<input type="number" name="discountValue" min="0" step="0.01" value="' + discountValueDisplay + '"></label>' +
+    '<label class="promotion-active-toggle"><input type="checkbox" name="active"' + (p.active ? ' checked' : '') + '> Active</label>' +
+    '<div class="progress-reset-actions">' +
+    '<button class="btn-primary" type="submit">Save</button>' +
+    '<button class="btn-secondary" type="button" data-act="cancel-promotion-form">Cancel</button>' +
+    '</div></form>';
+}
+
+function promotionRowHtml(p, index, total) {
+  var codeInfo = p.promo_code
+    ? '<span class="badge">' + escapeHtml(p.promo_code) + '</span> ' +
+      (p.discount_type === 'flat_cents' ? '$' + (p.discount_value / 100).toFixed(2) + ' off' : p.discount_value + '% off') +
+      ' · ' + p.redeemed_count + ' redeemed'
+    : '<span class="muted">Message only, no discount</span>';
+  return '<div class="card promotion-row">' +
+    '<div class="promotion-row-top">' +
+    '<strong>' + escapeHtml(p.title) + '</strong> ' +
+    '<span class="badge' + (p.active ? ' active' : '') + '">' + (p.active ? 'Active' : 'Inactive') + '</span> ' +
+    '<span class="muted">' + p.placement + '</span>' +
+    '</div>' +
+    '<p class="muted promotion-row-body">' + escapeHtml(p.body) + '</p>' +
+    '<p class="promotion-row-code">' + codeInfo + '</p>' +
+    '<div class="promotion-row-actions">' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="reorder-promotion" data-id="' + p.id + '" data-direction="up"' + (index === 0 ? ' disabled' : '') + '>▲</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="reorder-promotion" data-id="' + p.id + '" data-direction="down"' + (index === total - 1 ? ' disabled' : '') + '>▼</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="toggle-promotion-active" data-id="' + p.id + '" data-active="' + (p.active ? '0' : '1') + '">' + (p.active ? 'Deactivate' : 'Activate') + '</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="edit-promotion" data-id="' + p.id + '">Edit</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="delete-promotion" data-id="' + p.id + '">Delete</button>' +
+    '</div></div>';
+}
+
+async function renderPromotions() {
+  appEl.innerHTML = renderTabs('promotions') + '<p>Loading…</p>';
+  var data = await apiFetch('/console/promotions');
+  promotionsCache = data.promotions;
+  drawPromotions();
+}
+
+function drawPromotions() {
+  var rows = promotionsCache.map(function (p, i) { return promotionRowHtml(p, i, promotionsCache.length); }).join('');
+  var empty = promotionsCache.length ? '' : '<p class="muted">No promotions yet.</p>';
+  var addButton = promotionFormState ? '' : '<button class="btn-primary btn-sm" type="button" data-act="add-promotion">+ Add promotion</button>';
+  appEl.innerHTML = renderTabs('promotions') +
+    '<p class="muted page-intro-text">Shown on the public site\'s home page and/or checkout page. A promo with a ' +
+    'code is a real discount applied at checkout; one with no code is just a marketing message.</p>' +
+    '<div class="card"><div id="promotion-form-wrap">' + promotionFormHtml() + '</div>' + addButton + '</div>' +
+    empty + rows;
 }
 
 // ---- Codes ----------------------------------------------------------------
@@ -821,6 +905,7 @@ function route() {
   else if (view === 'settings') renderSettings();
   else if (view === 'refunds') renderRefunds();
   else if (view === 'stalled') renderStalledBuyers();
+  else if (view === 'promotions') renderPromotions();
   else renderCodes();
 }
 window.addEventListener('hashchange', route);
@@ -855,6 +940,31 @@ appEl.addEventListener('submit', async function (e) {
         ? 'No account found for that email — they may not have referred anyone yet.'
         : 'Could not adjust points. Try again.');
     }
+  } else if (act === 'save-promotion') {
+    e.preventDefault();
+    var pf = e.target;
+    var promoCode = pf.promoCode.value.trim();
+    var discountType = pf.discountType.value;
+    var rawDiscountValue = parseFloat(pf.discountValue.value);
+    var body = {
+      title: pf.title.value.trim(),
+      body: pf.body.value.trim(),
+      ctaLabel: pf.ctaLabel.value.trim() || undefined,
+      ctaUrl: pf.ctaUrl.value.trim() || undefined,
+      placement: pf.placement.value,
+      promoCode: promoCode || undefined,
+      discountType: discountType,
+      // Flat amounts are entered in dollars for admin convenience -- stored in cents like every
+      // other price in this app.
+      discountValue: promoCode ? (discountType === 'flat_cents' ? Math.round((rawDiscountValue || 0) * 100) : Math.round(rawDiscountValue || 0)) : undefined,
+      active: pf.active.checked,
+    };
+    var id = pf.getAttribute('data-id');
+    await apiFetch(id ? '/console/promotions/update' : '/console/promotions/create', {
+      method: 'POST', body: id ? Object.assign({ id: id }, body) : body,
+    });
+    promotionFormState = null;
+    renderPromotions();
   }
 });
 
@@ -869,6 +979,29 @@ appEl.addEventListener('click', async function (e) {
   if (act === 'revoke-code') {
     await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: el.getAttribute('data-code') } });
     renderCodes();
+  } else if (act === 'add-promotion') {
+    promotionFormState = 'new';
+    drawPromotions();
+  } else if (act === 'edit-promotion') {
+    var editId = el.getAttribute('data-id');
+    promotionFormState = promotionsCache.filter(function (p) { return p.id === editId; })[0] || 'new';
+    drawPromotions();
+  } else if (act === 'cancel-promotion-form') {
+    promotionFormState = null;
+    drawPromotions();
+  } else if (act === 'delete-promotion') {
+    await apiFetch('/console/promotions/delete', { method: 'POST', body: { id: el.getAttribute('data-id') } });
+    renderPromotions();
+  } else if (act === 'toggle-promotion-active') {
+    await apiFetch('/console/promotions/toggle', {
+      method: 'POST', body: { id: el.getAttribute('data-id'), active: el.getAttribute('data-active') === '1' },
+    });
+    renderPromotions();
+  } else if (act === 'reorder-promotion') {
+    await apiFetch('/console/promotions/reorder', {
+      method: 'POST', body: { id: el.getAttribute('data-id'), direction: el.getAttribute('data-direction') },
+    });
+    renderPromotions();
   } else if (act === 'review-refund-claim') {
     var claimId = el.getAttribute('data-claim-id');
     var reviewStatus = el.getAttribute('data-status');
