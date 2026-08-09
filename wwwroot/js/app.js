@@ -89,6 +89,8 @@ function promotionFormHtml() {
     '<label>Require email domain (optional — e.g. .edu for a student discount)<input type="text" name="requiredEmailDomain" placeholder=".edu" value="' + escapeHtml(p.required_email_domain || '') + '"></label>' +
     '<label class="promotion-active-toggle"><input type="checkbox" name="requireEmailVerification"' + (p.require_email_verification ? ' checked' : '') + '> ' +
     'Require email verification (sends a one-time confirmation link before the discount applies — recommended with a domain restriction, since that alone only checks the typed string, not real ownership)</label>' +
+    '<label class="promotion-active-toggle"><input type="checkbox" name="firstPurchaseOnly"' + (p.first_purchase_only ? ' checked' : '') + '> ' +
+    'First-time buyers only (rejected at checkout if the email already has access from any prior purchase — requires an email to be entered)</label>' +
     '<p class="muted page-intro-text">A points multiplier is a completely different effect from the discount above — ' +
     'redeemed on the Refer-a-Friend page (not checkout), it multiplies future referral points on that person\'s account ' +
     'for a set number of days. There\'s no domain to check for something like "retired professional," so the promo code ' +
@@ -111,6 +113,7 @@ function promotionRowHtml(p, index, total) {
       discountLabel +
       (p.required_email_domain ? ' · requires ' + escapeHtml(p.required_email_domain) + ' email' : '') +
       (p.require_email_verification ? ' (verified)' : '') +
+      (p.first_purchase_only ? ' · first-time buyers only' : '') +
       ' · ' + p.redeemed_count + ' redeemed';
   } else if (p.points_multiplier) {
     codeInfo = '<span class="badge">' + escapeHtml(p.promo_code || '—') + '</span> ' +
@@ -1000,6 +1003,7 @@ appEl.addEventListener('submit', async function (e) {
       discountValue: rawDiscountValue > 0 ? (discountType === 'flat_cents' ? Math.round(rawDiscountValue * 100) : Math.round(rawDiscountValue)) : undefined,
       requiredEmailDomain: pf.requiredEmailDomain.value.trim() || undefined,
       requireEmailVerification: pf.requireEmailVerification.checked,
+      firstPurchaseOnly: pf.firstPurchaseOnly.checked,
       pointsMultiplier: pf.pointsMultiplier.value ? parseInt(pf.pointsMultiplier.value, 10) : undefined,
       pointsMultiplierDays: pf.pointsMultiplierDays.value ? parseInt(pf.pointsMultiplierDays.value, 10) : undefined,
       active: pf.active.checked,
