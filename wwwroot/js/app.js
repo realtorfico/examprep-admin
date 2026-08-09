@@ -1009,9 +1009,16 @@ appEl.addEventListener('submit', async function (e) {
       active: pf.active.checked,
     };
     var id = pf.getAttribute('data-id');
-    await apiFetch(id ? '/console/promotions/update' : '/console/promotions/create', {
-      method: 'POST', body: id ? Object.assign({ id: id }, body) : body,
-    });
+    try {
+      await apiFetch(id ? '/console/promotions/update' : '/console/promotions/create', {
+        method: 'POST', body: id ? Object.assign({ id: id }, body) : body,
+      });
+    } catch (err) {
+      alert('Could not save this promotion. If this just started happening after a deploy, the ' +
+        'database may be missing a required column — check with the developer. (' +
+        ((err.data && err.data.error) || err.message || 'unknown error') + ')');
+      return;
+    }
     promotionFormState = null;
     renderPromotions();
   }
