@@ -681,6 +681,14 @@ async function renderSettings() {
     '<button class="btn-primary btn-sm" data-act="save-coverage-pass-pct">Save</button>' +
     '</div>';
 
+  var refundFailurePct = parseInt(bySetting.refund_failure_percent, 10);
+  var refundFailurePctVal = Number.isFinite(refundFailurePct) ? refundFailurePct : 50;
+  var refundFailurePctRow = '<div class="card price-row">' +
+    '<span class="price-row-label">Exam-failure refund %</span>' +
+    '<input type="number" step="1" min="0" max="100" class="refund-failure-pct-input" value="' + refundFailurePctVal + '" placeholder="50">' +
+    '<button class="btn-primary btn-sm" data-act="save-refund-failure-pct">Save</button>' +
+    '</div>';
+
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-grid">' +
     '<div class="settings-column">' +
@@ -711,6 +719,12 @@ async function renderSettings() {
     '<p class="muted page-intro-text">Thresholds (%) for when the student\'s headline Accuracy and Coverage numbers on the ' +
     'Progress tab show green (at/above) vs. red (below).</p>' +
     accuracyPassPctRow + coveragePassPctRow +
+    '</div>' +
+    '<div class="settings-column">' +
+    '<h3>Refund guarantee</h3>' +
+    '<p class="muted page-intro-text">Percent of the purchase price refunded on an approved exam-failure refund claim. ' +
+    'Shown live on the public site\'s footer, checkout, and refund-request pages.</p>' +
+    refundFailurePctRow +
     '</div>' +
     '</div>';
 }
@@ -1124,6 +1138,15 @@ appEl.addEventListener('click', async function (e) {
     await apiFetch('/console/settings', {
       method: 'POST',
       body: { key: 'progress_coverage_pass_pct', value: String(coveragePassPctVal) },
+    });
+    renderSettings();
+  } else if (act === 'save-refund-failure-pct') {
+    var refundFailurePctInput = document.querySelector('.refund-failure-pct-input');
+    var refundFailurePctVal = parseInt(refundFailurePctInput.value, 10);
+    if (!Number.isFinite(refundFailurePctVal) || refundFailurePctVal < 0 || refundFailurePctVal > 100) { alert('Enter a value between 0 and 100.'); return; }
+    await apiFetch('/console/settings', {
+      method: 'POST',
+      body: { key: 'refund_failure_percent', value: String(refundFailurePctVal) },
     });
     renderSettings();
   } else if (act === 'sort-accounts') {
