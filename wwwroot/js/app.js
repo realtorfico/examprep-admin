@@ -175,7 +175,7 @@ async function renderCodes() {
   appEl.innerHTML = renderTabs('codes') +
     '<div class="card">' +
     '<form data-act="generate-code" class="generate-form">' +
-    '<select name="examType"><option value="notary">Notary</option><option value="ca_driver">CA Driver (Class C)</option><option value="cdl">CA Commercial (CDL)</option></select>' +
+    '<select name="examType"><option value="notary">Notary</option><option value="ca_driver">CA Driver (Class C)</option><option value="cdl">CA Commercial (CDL)</option><option value="motorcycle">CA Motorcycle (M1/M2)</option></select>' +
     '<input type="text" name="note" placeholder="note (optional)">' +
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
