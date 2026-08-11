@@ -192,6 +192,7 @@ var EXAM_TYPES = [['ca_notary', 'California Notary'],
   ['fl_driver', 'FL Driver'], ['fl_cdl', 'FL Commercial (CDL)'],
   ['ny_driver', 'NY Driver'], ['ny_cdl', 'NY Commercial (CDL)'], ['ny_notary', 'New York Notary'],
   ['il_driver', 'IL Driver'], ['il_real_estate', 'Illinois Real Estate (Broker)'], ['il_managing_broker', 'Illinois Managing Broker'],
+  ['pa_driver', 'PA Driver'], ['pa_cdl', 'PA Commercial (CDL)'], ['pa_real_estate', 'Pennsylvania Real Estate (Salesperson)'],
   ['ca_dre', 'California DRE'], ['mlo', 'National MLO']];
 var currentQuestionsExamType = 'ca_notary';
 var currentQuestionsTopic = null; // null = "All"
