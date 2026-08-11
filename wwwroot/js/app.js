@@ -188,6 +188,7 @@ async function renderCodes() {
 
 var EXAM_TYPES = [['ca_notary', 'California Notary'],
   ['ca_driver', 'CA Driver (Class C)'], ['ca_cdl', 'CA Commercial (CDL)'], ['ca_motorcycle', 'CA Motorcycle (M1/M2)'],
+  ['tx_driver', 'TX Driver'], ['tx_cdl', 'TX Commercial (CDL)'],
   ['ca_dre', 'California DRE'], ['mlo', 'National MLO']];
 var currentQuestionsExamType = 'ca_notary';
 var currentQuestionsTopic = null; // null = "All"
