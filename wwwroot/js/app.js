@@ -686,6 +686,9 @@ async function renderSettings() {
     '<table class="settings-edit-table"><thead><tr><th>Track</th><th>Price (USD)</th></tr></thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table>' +
     '</section>' +
+    '</div>' +
+
+    '<div class="settings-secondary">' +
     '<section class="card settings-edit-group" data-group="point-rules">' +
     '<div class="settings-edit-toolbar">' +
     '<div><h3>Point rules</h3><p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read ' +
@@ -695,9 +698,6 @@ async function renderSettings() {
     '<table class="settings-edit-table"><thead><tr><th>Task</th><th>Points</th><th>Active</th></tr></thead>' +
     '<tbody>' + pointRuleRows + '</tbody></table>' +
     '</section>' +
-    '</div>' +
-
-    '<div class="settings-secondary">' +
     '<section class="card settings-edit-group" data-group="min-charge">' +
     '<h3>Points discount floor</h3>' +
     '<p class="muted page-intro-text">A points discount can never leave less than this payable through the card/wallet processor ' +
