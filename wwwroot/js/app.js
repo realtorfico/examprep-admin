@@ -175,7 +175,9 @@ async function renderCodes() {
   appEl.innerHTML = renderTabs('codes') +
     '<div class="card">' +
     '<form data-act="generate-code" class="generate-form">' +
-    '<select name="examType"><option value="ca_notary">Notary</option><option value="ca_driver">CA Driver (Class C)</option><option value="ca_cdl">CA Commercial (CDL)</option><option value="ca_motorcycle">CA Motorcycle (M1/M2)</option></select>' +
+    '<select name="examType">' + EXAM_TYPES.filter(function (t) { return t[0] !== 'mlo'; }).map(function (t) {
+      return '<option value="' + t[0] + '">' + t[1] + '</option>';
+    }).join('') + '</select>' +
     '<input type="text" name="note" placeholder="note (optional)">' +
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
@@ -193,7 +195,9 @@ var EXAM_TYPES = [['ca_notary', 'California Notary'],
   ['ny_driver', 'NY Driver'], ['ny_cdl', 'NY Commercial (CDL)'], ['ny_notary', 'New York Notary'],
   ['il_driver', 'IL Driver'], ['il_real_estate', 'Illinois Real Estate (Broker)'], ['il_managing_broker', 'Illinois Managing Broker'],
   ['pa_driver', 'PA Driver'], ['pa_cdl', 'PA Commercial (CDL)'], ['pa_real_estate', 'Pennsylvania Real Estate (Salesperson)'],
-  ['ca_dre', 'California DRE'], ['mlo', 'National MLO']];
+  ['ca_dre', 'California DRE'],
+  ['oh_driver', 'OH Driver'], ['oh_cdl', 'OH Commercial (CDL)'], ['oh_motorcycle', 'OH Motorcycle'],
+  ['mlo', 'National MLO']];
 var currentQuestionsExamType = 'ca_notary';
 var currentQuestionsTopic = null; // null = "All"
 var questionsCache = []; // full (unfiltered-by-topic) list for the current exam type
@@ -676,7 +680,7 @@ async function renderSettings() {
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-layout">' +
 
-    '<div class="settings-primary">' +
+    '<div class="settings-col">' +
     '<section class="card settings-edit-group" data-group="pricing">' +
     '<div class="settings-edit-toolbar">' +
     '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p></div>' +
@@ -688,7 +692,7 @@ async function renderSettings() {
     '</section>' +
     '</div>' +
 
-    '<div class="settings-secondary">' +
+    '<div class="settings-col">' +
     '<section class="card settings-edit-group" data-group="point-rules">' +
     '<div class="settings-edit-toolbar">' +
     '<div><h3>Point rules</h3><p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read ' +
@@ -706,6 +710,9 @@ async function renderSettings() {
     '<input type="number" step="0.01" min="0" class="min-charge-input" data-original="' + minChargeDollars + '" value="' + minChargeDollars + '" placeholder="1.00">' +
     settingsSaveButton('save-min-charge', 'min-charge', 'Save') +
     '</div></section>' +
+    '</div>' +
+
+    '<div class="settings-col">' +
     '<section class="card settings-edit-group" data-group="alert-email">' +
     '<h3>Activity alerts</h3>' +
     '<p class="muted page-intro-text">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
