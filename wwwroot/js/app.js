@@ -691,6 +691,16 @@ function applyPricingSortOrder() {
   rows.forEach(function (row) { tbody.appendChild(row); });
 }
 
+// Same shape as sortableHeaderRow(PRICING_COLUMNS, ...), plus one static, non-sortable "Questions"
+// column at the end (read-only question-bank inventory -- nothing to sort by user action here).
+function pricingTableHeadHtml() {
+  var sortableCells = PRICING_COLUMNS.map(function (c) {
+    var indicator = pricingSort.key === c[0] ? (pricingSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return '<th data-act="sort-pricing" data-key="' + c[0] + '">' + c[1] + indicator + '</th>';
+  }).join('');
+  return '<tr>' + sortableCells + '<th>Questions</th><th>Exam Qs</th><th>Duration</th><th>Pass Score</th></tr>';
+}
+
 function pricingTrackMatchesFilters(t, stateFilter, kindFilter) {
   return (!stateFilter || t[2] === stateFilter) && (!kindFilter || t[3] === kindFilter);
 }
@@ -759,13 +769,22 @@ async function renderSettings() {
     apiFetch('/console/pricing'),
     apiFetch('/console/point-rules'),
     apiFetch('/console/settings'),
+    apiFetch('/console/questions/counts'),
+    apiFetch('/console/exam-configs'),
   ]);
-  var pricingData = results[0], pointRulesData = results[1], settingsData = results[2];
+  var pricingData = results[0], pointRulesData = results[1], settingsData = results[2], questionCountsData = results[3], examConfigsData = results[4];
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
   var bySetting = {};
   settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
+  var questionCountByExam = {};
+  questionCountsData.counts.forEach(function (c) { questionCountByExam[c.exam_type] = c.count; });
+  // Same fallback getExamConfig() itself uses server-side for any track without its own entry.
+  var DEFAULT_EXAM_CONFIG = { questionCount: 45, durationSec: 3600, passPercent: 70 };
+  function examDurationLabel(durationSec) {
+    return durationSec ? Math.round(durationSec / 60) + ' min' : 'Untimed';
+  }
   // Per-track "pull from sale" override (see getInactiveTrackOverrides on the Worker) -- no row,
   // or a row with value '1', means the track follows the public site's own coded default; a row
   // with value '0' forces it off the hub/purchase flow regardless of code. Default to checked
@@ -777,10 +796,16 @@ async function renderSettings() {
     var activeOverride = bySetting['track_active:' + examType];
     var trackActive = activeOverride !== '0';
     var trackActiveOriginal = trackActive ? 'true' : 'false';
+    var questionCount = questionCountByExam[examType] || 0;
+    var examConfig = examConfigsData.configs[examType] || DEFAULT_EXAM_CONFIG;
     return '<tr data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td><td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
       '</td><td><label class="rule-active-label"><input type="checkbox" class="track-active-input" data-exam="' + examType + '" data-original="' + trackActiveOriginal + '"' +
-      (trackActive ? ' checked' : '') + '></label></td></tr>';
+      (trackActive ? ' checked' : '') + '></label></td>' +
+      '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
+      '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
+      '<td class="muted settings-readonly-cell">' + examDurationLabel(examConfig.durationSec) + '</td>' +
+      '<td class="muted settings-readonly-cell">' + examConfig.passPercent + '%</td></tr>';
   }).join('');
 
   var pointRuleRows = pointRulesData.pointRules.map(function (r) {
@@ -812,8 +837,8 @@ async function renderSettings() {
     '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
-    '<table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
-    '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table>' +
+    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + pricingTableHeadHtml() + '</thead>' +
+    '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
     '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
     '</section>' +
     '</div>' +
@@ -880,12 +905,21 @@ function updateSettingsDirtyState(changedEl) {
   if (!container) return;
   var group = container.getAttribute('data-group');
   var dirtyCount = 0;
+  // A row (e.g. a pricing row) can hold more than one data-original input (price + Active
+  // checkbox) -- collect dirty rows in a set and set the class once per row afterward, rather
+  // than toggling per-input, so the 2nd input's clean state doesn't overwrite the 1st's dirty one.
+  var dirtyRows = new Set();
   container.querySelectorAll('[data-original]').forEach(function (inp) {
     var current = inp.type === 'checkbox' ? String(inp.checked) : inp.value;
     var isDirty = current !== inp.dataset.original;
-    var row = inp.closest('tr[data-row-key]');
-    if (row) row.classList.toggle('row-dirty', isDirty);
-    if (isDirty) dirtyCount++;
+    if (isDirty) {
+      dirtyCount++;
+      var row = inp.closest('tr[data-row-key]');
+      if (row) dirtyRows.add(row);
+    }
+  });
+  container.querySelectorAll('tr[data-row-key]').forEach(function (row) {
+    row.classList.toggle('row-dirty', dirtyRows.has(row));
   });
   var btn = container.querySelector('button[data-group="' + group + '"]');
   if (!btn) return;
@@ -1313,7 +1347,7 @@ appEl.addEventListener('click', async function (e) {
     if (pricingSort.key === pricingSortKey) pricingSort.dir *= -1;
     else { pricingSort.key = pricingSortKey; pricingSort.dir = 1; }
     applyPricingSortOrder();
-    document.getElementById('pricing-table-head').innerHTML = sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing');
+    document.getElementById('pricing-table-head').innerHTML = pricingTableHeadHtml();
     updatePricingRowVisibility(); // collapse cutoff depends on row order, which just changed
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {

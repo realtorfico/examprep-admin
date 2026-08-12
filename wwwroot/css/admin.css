@@ -163,7 +163,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 /* Settings page: grouped-save editing. Every input carries data-original; a group's Save button
    (in the same [data-group] container) stays disabled until something in it differs -- see
    updateSettingsDirtyState()/markSettingsGroupSaved() in app.js. */
-.settings-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.settings-layout { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
 /* Single breakpoint straight to 1 column, not a 3->2->1 staircase -- with 3 items, a 2-column
    step makes the grid wrap the 3rd column onto its own row underneath the (tall) 1st column,
    which reads as it "floating down" below everything instead of sitting beside column 2. */
@@ -184,6 +184,10 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .settings-edit-table .price-input, .settings-edit-table .rule-points-input { width: 100%; max-width: 9rem; }
 .settings-edit-table tr.row-dirty { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .settings-edit-table tr.row-dirty td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.settings-readonly-cell { text-align: right; white-space: nowrap; }
+/* 7 columns wide once Questions/Exam Qs/Duration/Pass Score are all showing -- scrolls inside its
+   own box on narrow viewports instead of forcing the whole page to scroll horizontally. */
+.settings-table-scroll { overflow-x: auto; }
 .settings-table-toggle { margin-top: 0.6rem; }
 .settings-inline-field { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.6rem; }
 .settings-inline-field:last-child { margin-bottom: 0; }
