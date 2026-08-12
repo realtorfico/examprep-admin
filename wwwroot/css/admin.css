@@ -93,7 +93,7 @@ nav.sub-tabs a[aria-current="page"] {
 
 table { width: 100%; border-collapse: collapse; background: var(--surface-2); border-radius: 10px; overflow: hidden; }
 th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-th[data-act="sort-accounts"], th[data-act="sort-referrals"], th[data-act="sort-accuracy"], th[data-act="sort-quiz-progress-topics"] { cursor: pointer; user-select: none; white-space: nowrap; }
+th[data-act="sort-accounts"], th[data-act="sort-referrals"], th[data-act="sort-accuracy"], th[data-act="sort-quiz-progress-topics"], th[data-act="sort-pricing"] { cursor: pointer; user-select: none; white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
 
 .card {

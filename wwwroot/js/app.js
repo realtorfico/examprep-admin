@@ -659,6 +659,32 @@ var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
+var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)']];
+var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
+
+// Sorts by moving the existing <tr> DOM nodes (appendChild on an already-attached node relocates
+// it rather than cloning) instead of regenerating the tbody from data -- a data-driven re-render
+// would reset every price input back to its loaded value, wiping any in-progress unsaved edit.
+// Price sorts by the input's current (possibly unsaved) value, same "what's on screen" reasoning.
+function applyPricingSortOrder() {
+  if (!pricingSort.key) return;
+  var tbody = document.getElementById('pricing-rows-body');
+  if (!tbody) return;
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-row-key]'));
+  rows.sort(function (a, b) {
+    var av, bv;
+    if (pricingSort.key === 'price') {
+      av = parseFloat(a.querySelector('.price-input').value); bv = parseFloat(b.querySelector('.price-input').value);
+      av = isNaN(av) ? -Infinity : av; bv = isNaN(bv) ? -Infinity : bv;
+    } else {
+      av = a.children[0].textContent.toLowerCase(); bv = b.children[0].textContent.toLowerCase();
+    }
+    if (av < bv) return -1 * pricingSort.dir;
+    if (av > bv) return 1 * pricingSort.dir;
+    return 0;
+  });
+  rows.forEach(function (row) { tbody.appendChild(row); });
+}
 
 function pricingTrackMatchesFilters(t, stateFilter, kindFilter) {
   return (!stateFilter || t[2] === stateFilter) && (!kindFilter || t[3] === kindFilter);
@@ -774,7 +800,7 @@ async function renderSettings() {
     '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
-    '<table class="settings-edit-table"><thead><tr><th>Track</th><th>Price (USD)</th></tr></thead>' +
+    '<table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table>' +
     '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
     '</section>' +
@@ -831,6 +857,7 @@ async function renderSettings() {
 
     '</div>';
   pricingFilterQuery = '';
+  applyPricingSortOrder();
   updatePricingRowVisibility();
 }
 
@@ -1269,6 +1296,13 @@ appEl.addEventListener('click', async function (e) {
     document.getElementById('pricing-kind-filter-wrap').innerHTML = renderPricingKindFilterPills();
     document.getElementById('pricing-state-filter-wrap').innerHTML = renderPricingStateFilterPills(); // its counts depend on the kind filter too
     updatePricingRowVisibility();
+  } else if (act === 'sort-pricing') {
+    var pricingSortKey = el.getAttribute('data-key');
+    if (pricingSort.key === pricingSortKey) pricingSort.dir *= -1;
+    else { pricingSort.key = pricingSortKey; pricingSort.dir = 1; }
+    applyPricingSortOrder();
+    document.getElementById('pricing-table-head').innerHTML = sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing');
+    updatePricingRowVisibility(); // collapse cutoff depends on row order, which just changed
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {
       return inp.value !== inp.dataset.original;
