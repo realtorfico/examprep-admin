@@ -205,6 +205,7 @@ var EXAM_TYPES = [['ca_notary', 'California Notary', 'CA', 'Notary'],
   ['oh_driver', 'OH Driver', 'OH', 'Driver'], ['oh_cdl', 'OH Commercial (CDL)', 'OH', 'Commercial Driver (CDL)'],
   ['oh_motorcycle', 'OH Motorcycle', 'OH', 'Motorcycle'],
   ['oh_real_estate', 'Ohio Real Estate (Salesperson)', 'OH', 'Real Estate'],
+  ['oh_boating', 'Ohio Boating', 'OH', 'Boating'],
   ['mlo', 'National MLO', 'US', 'Mortgage Loan Origination']];
 var STATE_LABELS = { CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', US: 'National' };
 var currentQuestionsExamType = 'ca_notary';
