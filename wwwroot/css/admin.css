@@ -163,7 +163,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 /* Settings page: grouped-save editing. Every input carries data-original; a group's Save button
    (in the same [data-group] container) stays disabled until something in it differs -- see
    updateSettingsDirtyState()/markSettingsGroupSaved() in app.js. */
-.settings-layout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; align-items: start; }
+.settings-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
 /* Single breakpoint straight to 1 column, not a 3->2->1 staircase -- with 3 items, a 2-column
    step makes the grid wrap the 3rd column onto its own row underneath the (tall) 1st column,
    which reads as it "floating down" below everything instead of sitting beside column 2. */
