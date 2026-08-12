@@ -623,8 +623,15 @@ async function renderStats() {
 }
 
 // ---- Settings (course pricing) --------------------------------------------
-// Flat list, not sub-tabbed like Questions — only 3 exam types, so one screen showing
-// all of them at once is simpler than clicking between tabs to see/edit each price.
+// Grouped-save editing: every input carries data-original (the loaded value), and each group
+// (a data-group container) has exactly one Save button that stays disabled until something in
+// that group differs from its original — see updateSettingsDirtyState()/markSettingsGroupSaved() below.
+// Course pricing and Point rules render as compact tables (not one card per row) since the
+// track list keeps growing (18 and counting) and a stacked-card layout doesn't scale.
+
+function settingsSaveButton(act, group, label) {
+  return '<button class="btn-primary btn-sm" data-act="' + act + '" data-group="' + group + '" disabled>' + label + '</button>';
+}
 
 async function renderSettings() {
   appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
@@ -637,106 +644,149 @@ async function renderSettings() {
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
-  var priceRows = EXAM_TYPES.map(function (t) {
+  var pricingRows = EXAM_TYPES.map(function (t) {
     var examType = t[0], label = t[1];
     var p = byExam[examType];
     var dollars = p ? (p.price_cents / 100).toFixed(2) : '';
-    return '<div class="card price-row">' +
-      '<span class="price-row-label">' + label + '</span>' +
-      '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" value="' + dollars + '" placeholder="0.00">' +
-      '<button class="btn-primary btn-sm" data-act="save-price" data-exam="' + examType + '">Save</button>' +
-      '</div>';
+    return '<tr data-row-key="' + examType + '"><td>' + label + '</td><td>' +
+      '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
+      '</td></tr>';
   }).join('');
 
-  var ruleRows = pointRulesData.pointRules.map(function (r) {
-    return '<div class="card price-row">' +
-      '<span class="price-row-label">' + r.label + '</span>' +
-      '<input type="number" min="0" class="rule-points-input" data-task="' + r.task_key + '" value="' + r.points + '" placeholder="points">' +
-      '<label class="rule-active-label"><input type="checkbox" class="rule-active-input" data-task="' + r.task_key + '"' +
-      (r.active ? ' checked' : '') + '> Active</label>' +
-      '<button class="btn-primary btn-sm" data-act="save-point-rule" data-task="' + r.task_key + '" data-label="' + r.label + '">Save</button>' +
-      '</div>';
+  var pointRuleRows = pointRulesData.pointRules.map(function (r) {
+    var activeOriginal = r.active ? 'true' : 'false';
+    return '<tr data-row-key="' + r.task_key + '"><td>' + r.label + '</td><td>' +
+      '<input type="number" min="0" class="rule-points-input" data-task="' + r.task_key + '" data-original="' + r.points + '" value="' + r.points + '" placeholder="points">' +
+      '</td><td><label class="rule-active-label"><input type="checkbox" class="rule-active-input" data-task="' + r.task_key + '" data-original="' + activeOriginal + '"' +
+      (r.active ? ' checked' : '') + '> Active</label></td></tr>';
   }).join('');
 
   var bySetting = {};
   settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
   var minChargeCents = parseInt(bySetting.min_paypal_charge_cents, 10);
   var minChargeDollars = Number.isFinite(minChargeCents) ? (minChargeCents / 100).toFixed(2) : '1.00';
-  var minChargeRow = '<div class="card price-row">' +
-    '<span class="price-row-label">Minimum card/wallet charge</span>' +
-    '<input type="number" step="0.01" min="0" class="min-charge-input" value="' + minChargeDollars + '" placeholder="1.00">' +
-    '<button class="btn-primary btn-sm" data-act="save-min-charge">Save</button>' +
-    '</div>';
-
   var alertEmail = bySetting.admin_alert_email || '';
-  var alertEmailRow = '<div class="card price-row">' +
-    '<span class="price-row-label">Alert email</span>' +
-    '<input type="email" class="alert-email-input" value="' + alertEmail + '" placeholder="you@example.com">' +
-    '<button class="btn-primary btn-sm" data-act="save-alert-email">Save</button>' +
-    '</div>';
-
   var accuracyPassPct = parseInt(bySetting.progress_accuracy_pass_pct, 10);
   var accuracyPassPctVal = Number.isFinite(accuracyPassPct) ? accuracyPassPct : 80;
-  var accuracyPassPctRow = '<div class="card price-row">' +
-    '<span class="price-row-label">Accuracy turns green at/above</span>' +
-    '<input type="number" step="1" min="0" max="100" class="accuracy-pass-pct-input" value="' + accuracyPassPctVal + '" placeholder="80">' +
-    '<button class="btn-primary btn-sm" data-act="save-accuracy-pass-pct">Save</button>' +
-    '</div>';
-
   var coveragePassPct = parseInt(bySetting.progress_coverage_pass_pct, 10);
   var coveragePassPctVal = Number.isFinite(coveragePassPct) ? coveragePassPct : 50;
-  var coveragePassPctRow = '<div class="card price-row">' +
-    '<span class="price-row-label">Coverage turns green at/above</span>' +
-    '<input type="number" step="1" min="0" max="100" class="coverage-pass-pct-input" value="' + coveragePassPctVal + '" placeholder="50">' +
-    '<button class="btn-primary btn-sm" data-act="save-coverage-pass-pct">Save</button>' +
-    '</div>';
-
   var refundFailurePct = parseInt(bySetting.refund_failure_percent, 10);
   var refundFailurePctVal = Number.isFinite(refundFailurePct) ? refundFailurePct : 50;
-  var refundFailurePctRow = '<div class="card price-row">' +
-    '<span class="price-row-label">Exam-failure refund %</span>' +
-    '<input type="number" step="1" min="0" max="100" class="refund-failure-pct-input" value="' + refundFailurePctVal + '" placeholder="50">' +
-    '<button class="btn-primary btn-sm" data-act="save-refund-failure-pct">Save</button>' +
-    '</div>';
 
   appEl.innerHTML = renderTabs('settings') +
-    '<div class="settings-grid">' +
-    '<div class="settings-column">' +
-    '<h3>Course pricing</h3>' +
-    '<p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p>' +
-    priceRows +
+    '<div class="settings-layout">' +
+
+    '<div class="settings-primary">' +
+    '<section class="card settings-edit-group" data-group="pricing">' +
+    '<div class="settings-edit-toolbar">' +
+    '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p></div>' +
+    settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
     '</div>' +
-    '<div class="settings-column">' +
-    '<h3>Point rules</h3>' +
-    '<p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read directly ' +
-    'as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p>' +
-    ruleRows +
+    '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
+    '<table class="settings-edit-table"><thead><tr><th>Track</th><th>Price (USD)</th></tr></thead>' +
+    '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table>' +
+    '</section>' +
+    '<section class="card settings-edit-group" data-group="point-rules">' +
+    '<div class="settings-edit-toolbar">' +
+    '<div><h3>Point rules</h3><p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read ' +
+    'directly as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p></div>' +
+    settingsSaveButton('save-point-rules-changes', 'point-rules', 'Save changes') +
     '</div>' +
-    '<div class="settings-column">' +
+    '<table class="settings-edit-table"><thead><tr><th>Task</th><th>Points</th><th>Active</th></tr></thead>' +
+    '<tbody>' + pointRuleRows + '</tbody></table>' +
+    '</section>' +
+    '</div>' +
+
+    '<div class="settings-secondary">' +
+    '<section class="card settings-edit-group" data-group="min-charge">' +
     '<h3>Points discount floor</h3>' +
     '<p class="muted page-intro-text">A points discount can never leave less than this payable through the card/wallet processor ' +
     '(points fully covering a course still redeem free with zero cash, no charge involved, so this doesn\'t affect that).</p>' +
-    minChargeRow +
-    '</div>' +
-    '<div class="settings-column">' +
+    '<div class="settings-inline-field">' +
+    '<input type="number" step="0.01" min="0" class="min-charge-input" data-original="' + minChargeDollars + '" value="' + minChargeDollars + '" placeholder="1.00">' +
+    settingsSaveButton('save-min-charge', 'min-charge', 'Save') +
+    '</div></section>' +
+    '<section class="card settings-edit-group" data-group="alert-email">' +
     '<h3>Activity alerts</h3>' +
     '<p class="muted page-intro-text">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
     'buys a course. Leave blank to turn alerts off.</p>' +
-    alertEmailRow +
-    '</div>' +
-    '<div class="settings-column">' +
+    '<div class="settings-inline-field">' +
+    '<input type="email" class="alert-email-input" data-original="' + alertEmail + '" value="' + alertEmail + '" placeholder="you@example.com">' +
+    settingsSaveButton('save-alert-email', 'alert-email', 'Save') +
+    '</div></section>' +
+    '<section class="card settings-edit-group" data-group="progress-colors">' +
     '<h3>Progress tab colors</h3>' +
     '<p class="muted page-intro-text">Thresholds (%) for when the student\'s headline Accuracy and Coverage numbers on the ' +
     'Progress tab show green (at/above) vs. red (below).</p>' +
-    accuracyPassPctRow + coveragePassPctRow +
-    '</div>' +
-    '<div class="settings-column">' +
+    '<div class="settings-inline-field"><label class="price-row-label">Accuracy turns green at/above</label>' +
+    '<input type="number" step="1" min="0" max="100" class="accuracy-pass-pct-input" data-original="' + accuracyPassPctVal + '" value="' + accuracyPassPctVal + '" placeholder="80"></div>' +
+    '<div class="settings-inline-field"><label class="price-row-label">Coverage turns green at/above</label>' +
+    '<input type="number" step="1" min="0" max="100" class="coverage-pass-pct-input" data-original="' + coveragePassPctVal + '" value="' + coveragePassPctVal + '" placeholder="50">' +
+    settingsSaveButton('save-progress-colors', 'progress-colors', 'Save') +
+    '</div></section>' +
+    '<section class="card settings-edit-group" data-group="refund-pct">' +
     '<h3>Refund guarantee</h3>' +
     '<p class="muted page-intro-text">Percent of the purchase price refunded on an approved exam-failure refund claim. ' +
     'Shown live on the public site\'s footer, checkout, and refund-request pages.</p>' +
-    refundFailurePctRow +
+    '<div class="settings-inline-field">' +
+    '<input type="number" step="1" min="0" max="100" class="refund-failure-pct-input" data-original="' + refundFailurePctVal + '" value="' + refundFailurePctVal + '" placeholder="50">' +
+    settingsSaveButton('save-refund-failure-pct', 'refund-pct', 'Save') +
+    '</div></section>' +
     '</div>' +
+
     '</div>';
+}
+
+// Recomputes dirty state (row highlight + Save button enabled/count) for whichever settings
+// group contains changedEl. Runs on every input/change inside a settings-edit-group.
+function updateSettingsDirtyState(changedEl) {
+  var container = changedEl.closest('[data-group]');
+  if (!container) return;
+  var group = container.getAttribute('data-group');
+  var dirtyCount = 0;
+  container.querySelectorAll('[data-original]').forEach(function (inp) {
+    var current = inp.type === 'checkbox' ? String(inp.checked) : inp.value;
+    var isDirty = current !== inp.dataset.original;
+    var row = inp.closest('tr[data-row-key]');
+    if (row) row.classList.toggle('row-dirty', isDirty);
+    if (isDirty) dirtyCount++;
+  });
+  var btn = container.querySelector('button[data-group="' + group + '"]');
+  if (!btn) return;
+  if (!btn.dataset.baseLabel) btn.dataset.baseLabel = btn.textContent;
+  btn.disabled = dirtyCount === 0;
+  btn.textContent = dirtyCount > 1 ? btn.dataset.baseLabel + ' (' + dirtyCount + ')' : btn.dataset.baseLabel;
+}
+
+function filterPricingRows(query) {
+  var q = query.trim().toLowerCase();
+  document.querySelectorAll('#pricing-rows-body tr[data-row-key]').forEach(function (row) {
+    row.style.display = !q || row.children[0].textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+  });
+}
+
+// Marks a just-saved group's inputs as the new baseline and shows a brief inline confirmation,
+// instead of the old pattern of re-fetching and re-rendering the whole Settings page on every save.
+function markSettingsGroupSaved(btn) {
+  // NOT btn.closest('[data-group]') -- the button itself carries data-group, so that would
+  // resolve to the button instead of its container and find no sibling inputs to reset.
+  var container = btn.closest('.settings-edit-group');
+  container.querySelectorAll('[data-original]').forEach(function (inp) {
+    inp.dataset.original = inp.type === 'checkbox' ? String(inp.checked) : inp.value;
+    var row = inp.closest('tr[data-row-key]');
+    if (row) row.classList.remove('row-dirty');
+  });
+  btn.disabled = true;
+  btn.textContent = btn.dataset.baseLabel;
+  var flash = document.createElement('span');
+  flash.className = 'settings-saved-flash';
+  flash.textContent = 'Saved ✓';
+  btn.insertAdjacentElement('afterend', flash);
+  requestAnimationFrame(function () { flash.classList.add('visible'); });
+  setTimeout(function () {
+    flash.classList.remove('visible');
+    setTimeout(function () { flash.remove(); }, 300);
+  }, 1600);
 }
 
 // ---- Points (accounts, manual adjustments, referral log) ------------------
@@ -1104,25 +1154,39 @@ appEl.addEventListener('click', async function (e) {
       drawStalledBuyersTable();
       alert('Could not send reminder: ' + (err.data && err.data.error ? err.data.error : 'unknown error'));
     }
-  } else if (act === 'save-price') {
-    var examType = el.getAttribute('data-exam');
-    var input = document.querySelector('.price-input[data-exam="' + examType + '"]');
-    var dollars = parseFloat(input.value);
-    if (isNaN(dollars) || dollars < 0) { alert('Enter a valid price.'); return; }
-    await apiFetch('/console/pricing', { method: 'POST', body: { examType: examType, priceCents: Math.round(dollars * 100) } });
-    renderSettings();
-  } else if (act === 'save-point-rule') {
-    var taskKey = el.getAttribute('data-task');
-    var label = el.getAttribute('data-label');
-    var pointsInput = document.querySelector('.rule-points-input[data-task="' + taskKey + '"]');
-    var activeInput = document.querySelector('.rule-active-input[data-task="' + taskKey + '"]');
-    var pointsVal = parseInt(pointsInput.value, 10);
-    if (isNaN(pointsVal) || pointsVal < 0) { alert('Enter a valid points value.'); return; }
-    await apiFetch('/console/point-rules', {
-      method: 'POST',
-      body: { taskKey: taskKey, label: label, points: pointsVal, active: activeInput.checked },
+  } else if (act === 'save-pricing-changes') {
+    var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {
+      return inp.value !== inp.dataset.original;
     });
-    renderSettings();
+    for (var i = 0; i < dirtyPriceRows.length; i++) {
+      var priceInput = dirtyPriceRows[i];
+      var dollars = parseFloat(priceInput.value);
+      if (isNaN(dollars) || dollars < 0) { alert('Enter a valid price for every changed track.'); return; }
+    }
+    await Promise.all(dirtyPriceRows.map(function (inp) {
+      return apiFetch('/console/pricing', { method: 'POST', body: { examType: inp.dataset.exam, priceCents: Math.round(parseFloat(inp.value) * 100) } });
+    }));
+    markSettingsGroupSaved(el);
+  } else if (act === 'save-point-rules-changes') {
+    var dirtyRuleRows = Array.prototype.slice.call(document.querySelectorAll('tr[data-row-key]')).filter(function (row) {
+      var pointsInput = row.querySelector('.rule-points-input');
+      if (!pointsInput) return false; // scopes to point-rule rows, excluding pricing rows
+      var activeInput = row.querySelector('.rule-active-input');
+      return pointsInput.value !== pointsInput.dataset.original || String(activeInput.checked) !== activeInput.dataset.original;
+    });
+    for (var j = 0; j < dirtyRuleRows.length; j++) {
+      var pointsVal = parseInt(dirtyRuleRows[j].querySelector('.rule-points-input').value, 10);
+      if (isNaN(pointsVal) || pointsVal < 0) { alert('Enter a valid points value for every changed rule.'); return; }
+    }
+    await Promise.all(dirtyRuleRows.map(function (row) {
+      var pointsInput = row.querySelector('.rule-points-input');
+      var activeInput = row.querySelector('.rule-active-input');
+      return apiFetch('/console/point-rules', {
+        method: 'POST',
+        body: { taskKey: pointsInput.dataset.task, label: row.children[0].textContent, points: parseInt(pointsInput.value, 10), active: activeInput.checked },
+      });
+    }));
+    markSettingsGroupSaved(el);
   } else if (act === 'save-min-charge') {
     var minChargeInput = document.querySelector('.min-charge-input');
     var minChargeDollarsVal = parseFloat(minChargeInput.value);
@@ -1131,7 +1195,7 @@ appEl.addEventListener('click', async function (e) {
       method: 'POST',
       body: { key: 'min_paypal_charge_cents', value: String(Math.round(minChargeDollarsVal * 100)) },
     });
-    renderSettings();
+    markSettingsGroupSaved(el);
   } else if (act === 'save-alert-email') {
     var alertEmailInput = document.querySelector('.alert-email-input');
     var alertEmailVal = alertEmailInput.value.trim();
@@ -1139,25 +1203,25 @@ appEl.addEventListener('click', async function (e) {
       method: 'POST',
       body: { key: 'admin_alert_email', value: alertEmailVal },
     });
-    renderSettings();
-  } else if (act === 'save-accuracy-pass-pct') {
+    markSettingsGroupSaved(el);
+  } else if (act === 'save-progress-colors') {
     var accuracyPassPctInput = document.querySelector('.accuracy-pass-pct-input');
-    var accuracyPassPctVal = parseInt(accuracyPassPctInput.value, 10);
-    if (!Number.isFinite(accuracyPassPctVal) || accuracyPassPctVal < 0 || accuracyPassPctVal > 100) { alert('Enter a value between 0 and 100.'); return; }
-    await apiFetch('/console/settings', {
-      method: 'POST',
-      body: { key: 'progress_accuracy_pass_pct', value: String(accuracyPassPctVal) },
-    });
-    renderSettings();
-  } else if (act === 'save-coverage-pass-pct') {
     var coveragePassPctInput = document.querySelector('.coverage-pass-pct-input');
+    var accuracyPassPctVal = parseInt(accuracyPassPctInput.value, 10);
     var coveragePassPctVal = parseInt(coveragePassPctInput.value, 10);
-    if (!Number.isFinite(coveragePassPctVal) || coveragePassPctVal < 0 || coveragePassPctVal > 100) { alert('Enter a value between 0 and 100.'); return; }
-    await apiFetch('/console/settings', {
-      method: 'POST',
-      body: { key: 'progress_coverage_pass_pct', value: String(coveragePassPctVal) },
-    });
-    renderSettings();
+    if (!Number.isFinite(accuracyPassPctVal) || accuracyPassPctVal < 0 || accuracyPassPctVal > 100 ||
+      !Number.isFinite(coveragePassPctVal) || coveragePassPctVal < 0 || coveragePassPctVal > 100) {
+      alert('Enter a value between 0 and 100 for both.'); return;
+    }
+    var colorSaves = [];
+    if (accuracyPassPctInput.value !== accuracyPassPctInput.dataset.original) {
+      colorSaves.push(apiFetch('/console/settings', { method: 'POST', body: { key: 'progress_accuracy_pass_pct', value: String(accuracyPassPctVal) } }));
+    }
+    if (coveragePassPctInput.value !== coveragePassPctInput.dataset.original) {
+      colorSaves.push(apiFetch('/console/settings', { method: 'POST', body: { key: 'progress_coverage_pass_pct', value: String(coveragePassPctVal) } }));
+    }
+    await Promise.all(colorSaves);
+    markSettingsGroupSaved(el);
   } else if (act === 'save-refund-failure-pct') {
     var refundFailurePctInput = document.querySelector('.refund-failure-pct-input');
     var refundFailurePctVal = parseInt(refundFailurePctInput.value, 10);
@@ -1166,7 +1230,7 @@ appEl.addEventListener('click', async function (e) {
       method: 'POST',
       body: { key: 'refund_failure_percent', value: String(refundFailurePctVal) },
     });
-    renderSettings();
+    markSettingsGroupSaved(el);
   } else if (act === 'sort-accounts') {
     var accountsSortKey = el.getAttribute('data-key');
     if (accountsSort.key === accountsSortKey) accountsSort.dir *= -1;
@@ -1219,6 +1283,14 @@ appEl.addEventListener('click', async function (e) {
     saveLocalPrefs(l.theme, next);
     applyTheme(l.theme, next);
   }
+});
+
+appEl.addEventListener('input', function (e) {
+  if (e.target.classList.contains('settings-filter-input')) { filterPricingRows(e.target.value); return; }
+  if (e.target.hasAttribute('data-original')) updateSettingsDirtyState(e.target);
+});
+appEl.addEventListener('change', function (e) {
+  if (e.target.hasAttribute('data-original')) updateSettingsDirtyState(e.target);
 });
 
 document.addEventListener('change', async function (e) {
