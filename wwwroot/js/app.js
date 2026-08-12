@@ -660,7 +660,7 @@ var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
-var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)']];
+var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active']];
 var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
 
 // Sorts by moving the existing <tr> DOM nodes (appendChild on an already-attached node relocates
@@ -760,13 +760,23 @@ async function renderSettings() {
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
+  var bySetting = {};
+  settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
+  // Per-track "pull from sale" override (see getInactiveTrackOverrides on the Worker) -- no row,
+  // or a row with value '1', means the track follows the public site's own coded default; a row
+  // with value '0' forces it off the hub/purchase flow regardless of code. Default to checked
+  // (on) when no override row exists yet, since every real track's coded default is active.
   var pricingRows = EXAM_TYPES.map(function (t) {
     var examType = t[0], label = t[1], stateCode = t[2], examKind = t[3];
     var p = byExam[examType];
     var dollars = p ? (p.price_cents / 100).toFixed(2) : '';
+    var activeOverride = bySetting['track_active:' + examType];
+    var trackActive = activeOverride !== '0';
+    var trackActiveOriginal = trackActive ? 'true' : 'false';
     return '<tr data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td><td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
-      '</td></tr>';
+      '</td><td><label class="rule-active-label"><input type="checkbox" class="track-active-input" data-exam="' + examType + '" data-original="' + trackActiveOriginal + '"' +
+      (trackActive ? ' checked' : '') + '></label></td></tr>';
   }).join('');
 
   var pointRuleRows = pointRulesData.pointRules.map(function (r) {
@@ -776,9 +786,6 @@ async function renderSettings() {
       '</td><td><label class="rule-active-label"><input type="checkbox" class="rule-active-input" data-task="' + r.task_key + '" data-original="' + activeOriginal + '"' +
       (r.active ? ' checked' : '') + '> Active</label></td></tr>';
   }).join('');
-
-  var bySetting = {};
-  settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
   var minChargeCents = parseInt(bySetting.min_paypal_charge_cents, 10);
   var minChargeDollars = Number.isFinite(minChargeCents) ? (minChargeCents / 100).toFixed(2) : '1.00';
   var alertEmail = bySetting.admin_alert_email || '';
@@ -1313,9 +1320,16 @@ appEl.addEventListener('click', async function (e) {
       var dollars = parseFloat(priceInput.value);
       if (isNaN(dollars) || dollars < 0) { alert('Enter a valid price for every changed track.'); return; }
     }
-    await Promise.all(dirtyPriceRows.map(function (inp) {
-      return apiFetch('/console/pricing', { method: 'POST', body: { examType: inp.dataset.exam, priceCents: Math.round(parseFloat(inp.value) * 100) } });
-    }));
+    var dirtyActiveRows = Array.prototype.slice.call(document.querySelectorAll('.track-active-input')).filter(function (inp) {
+      return String(inp.checked) !== inp.dataset.original;
+    });
+    await Promise.all(
+      dirtyPriceRows.map(function (inp) {
+        return apiFetch('/console/pricing', { method: 'POST', body: { examType: inp.dataset.exam, priceCents: Math.round(parseFloat(inp.value) * 100) } });
+      }).concat(dirtyActiveRows.map(function (inp) {
+        return apiFetch('/console/settings', { method: 'POST', body: { key: 'track_active:' + inp.dataset.exam, value: inp.checked ? '1' : '0' } });
+      }))
+    );
     markSettingsGroupSaved(el);
   } else if (act === 'save-point-rules-changes') {
     var dirtyRuleRows = Array.prototype.slice.call(document.querySelectorAll('tr[data-row-key]')).filter(function (row) {
