@@ -637,6 +637,34 @@ function settingsSaveButton(act, group, label) {
   return '<button class="btn-primary btn-sm" data-act="' + act + '" data-group="' + group + '" disabled>' + label + '</button>';
 }
 
+// Show all / show fewer on the pricing table, mirroring the Stats tab's per-track accuracy
+// table pattern (ACCURACY_COLLAPSED_COUNT). Rows stay in the DOM always -- only display is
+// toggled -- so an in-progress (unsaved) edit in a collapsed row survives expanding/collapsing,
+// unlike a re-render that would reset inputs back to their loaded values.
+var PRICING_COLLAPSED_COUNT = 7;
+var pricingRowsExpanded = false;
+var pricingFilterQuery = '';
+
+function updatePricingRowVisibility() {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#pricing-rows-body tr[data-row-key]'));
+  var q = pricingFilterQuery.trim().toLowerCase();
+  var shown = 0;
+  rows.forEach(function (row) {
+    var matches = !q || row.children[0].textContent.toLowerCase().indexOf(q) !== -1;
+    var visible = matches && (!!q || pricingRowsExpanded || shown < PRICING_COLLAPSED_COUNT);
+    row.style.display = visible ? '' : 'none';
+    if (visible) shown++;
+  });
+  var toggleBtn = document.getElementById('pricing-show-all-toggle');
+  if (!toggleBtn) return;
+  if (q || rows.length <= PRICING_COLLAPSED_COUNT) {
+    toggleBtn.style.display = 'none';
+  } else {
+    toggleBtn.style.display = '';
+    toggleBtn.textContent = pricingRowsExpanded ? 'Show fewer ▴' : 'Show all ' + rows.length + ' ▾';
+  }
+}
+
 async function renderSettings() {
   appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
   var results = await Promise.all([
@@ -689,6 +717,7 @@ async function renderSettings() {
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
     '<table class="settings-edit-table"><thead><tr><th>Track</th><th>Price (USD)</th></tr></thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table>' +
+    '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
     '</section>' +
     '</div>' +
 
@@ -742,6 +771,8 @@ async function renderSettings() {
     '</div>' +
 
     '</div>';
+  pricingFilterQuery = '';
+  updatePricingRowVisibility();
 }
 
 // Recomputes dirty state (row highlight + Save button enabled/count) for whichever settings
@@ -766,10 +797,8 @@ function updateSettingsDirtyState(changedEl) {
 }
 
 function filterPricingRows(query) {
-  var q = query.trim().toLowerCase();
-  document.querySelectorAll('#pricing-rows-body tr[data-row-key]').forEach(function (row) {
-    row.style.display = !q || row.children[0].textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
-  });
+  pricingFilterQuery = query;
+  updatePricingRowVisibility();
 }
 
 // Marks a just-saved group's inputs as the new baseline and shows a brief inline confirmation,
@@ -1161,6 +1190,9 @@ appEl.addEventListener('click', async function (e) {
       drawStalledBuyersTable();
       alert('Could not send reminder: ' + (err.data && err.data.error ? err.data.error : 'unknown error'));
     }
+  } else if (act === 'toggle-pricing-rows') {
+    pricingRowsExpanded = !pricingRowsExpanded;
+    updatePricingRowVisibility();
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {
       return inp.value !== inp.dataset.original;
