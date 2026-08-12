@@ -206,8 +206,11 @@ var EXAM_TYPES = [['ca_notary', 'California Notary', 'CA', 'Notary'],
   ['oh_motorcycle', 'OH Motorcycle', 'OH', 'Motorcycle'],
   ['oh_real_estate', 'Ohio Real Estate (Salesperson)', 'OH', 'Real Estate'],
   ['oh_boating', 'Ohio Boating', 'OH', 'Boating'],
+  ['ga_driver', 'GA Driver', 'GA', 'Driver'], ['ga_cdl', 'GA Commercial (CDL)', 'GA', 'Commercial Driver (CDL)'],
+  ['ga_motorcycle', 'GA Motorcycle', 'GA', 'Motorcycle'],
+  ['ga_real_estate', 'Georgia Real Estate (Salesperson)', 'GA', 'Real Estate'],
   ['mlo', 'National MLO', 'US', 'Mortgage Loan Origination']];
-var STATE_LABELS = { CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', US: 'National' };
+var STATE_LABELS = { CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', GA: 'Georgia', US: 'National' };
 var currentQuestionsExamType = 'ca_notary';
 var currentQuestionsTopic = null; // null = "All"
 var questionsCache = []; // full (unfiltered-by-topic) list for the current exam type
