@@ -188,16 +188,24 @@ async function renderCodes() {
 
 // ---- Questions --------------------------------------------------------
 
-var EXAM_TYPES = [['ca_notary', 'California Notary'],
-  ['ca_driver', 'CA Driver (Class C)'], ['ca_cdl', 'CA Commercial (CDL)'], ['ca_motorcycle', 'CA Motorcycle (M1/M2)'],
-  ['tx_driver', 'TX Driver'], ['tx_cdl', 'TX Commercial (CDL)'],
-  ['fl_driver', 'FL Driver'], ['fl_cdl', 'FL Commercial (CDL)'],
-  ['ny_driver', 'NY Driver'], ['ny_cdl', 'NY Commercial (CDL)'], ['ny_notary', 'New York Notary'],
-  ['il_driver', 'IL Driver'], ['il_real_estate', 'Illinois Real Estate (Broker)'], ['il_managing_broker', 'Illinois Managing Broker'],
-  ['pa_driver', 'PA Driver'], ['pa_cdl', 'PA Commercial (CDL)'], ['pa_real_estate', 'Pennsylvania Real Estate (Salesperson)'],
-  ['ca_dre', 'California DRE'],
-  ['oh_driver', 'OH Driver'], ['oh_cdl', 'OH Commercial (CDL)'], ['oh_motorcycle', 'OH Motorcycle'],
-  ['mlo', 'National MLO']];
+// 3rd/4th entries (stateCode, examKind) mirror HUB_EXAMS on the public site 1:1 -- lets the
+// Settings > Course pricing table offer the same state/type filters as the public track hub.
+var EXAM_TYPES = [['ca_notary', 'California Notary', 'CA', 'Notary'],
+  ['ca_driver', 'CA Driver (Class C)', 'CA', 'Driver'], ['ca_cdl', 'CA Commercial (CDL)', 'CA', 'Commercial Driver (CDL)'],
+  ['ca_motorcycle', 'CA Motorcycle (M1/M2)', 'CA', 'Motorcycle'],
+  ['tx_driver', 'TX Driver', 'TX', 'Driver'], ['tx_cdl', 'TX Commercial (CDL)', 'TX', 'Commercial Driver (CDL)'],
+  ['fl_driver', 'FL Driver', 'FL', 'Driver'], ['fl_cdl', 'FL Commercial (CDL)', 'FL', 'Commercial Driver (CDL)'],
+  ['ny_driver', 'NY Driver', 'NY', 'Driver'], ['ny_cdl', 'NY Commercial (CDL)', 'NY', 'Commercial Driver (CDL)'],
+  ['ny_notary', 'New York Notary', 'NY', 'Notary'],
+  ['il_driver', 'IL Driver', 'IL', 'Driver'], ['il_real_estate', 'Illinois Real Estate (Broker)', 'IL', 'Real Estate'],
+  ['il_managing_broker', 'Illinois Managing Broker', 'IL', 'Real Estate'],
+  ['pa_driver', 'PA Driver', 'PA', 'Driver'], ['pa_cdl', 'PA Commercial (CDL)', 'PA', 'Commercial Driver (CDL)'],
+  ['pa_real_estate', 'Pennsylvania Real Estate (Salesperson)', 'PA', 'Real Estate'],
+  ['ca_dre', 'California DRE', 'CA', 'Real Estate'],
+  ['oh_driver', 'OH Driver', 'OH', 'Driver'], ['oh_cdl', 'OH Commercial (CDL)', 'OH', 'Commercial Driver (CDL)'],
+  ['oh_motorcycle', 'OH Motorcycle', 'OH', 'Motorcycle'],
+  ['mlo', 'National MLO', 'US', 'Mortgage Loan Origination']];
+var STATE_LABELS = { CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', US: 'National' };
 var currentQuestionsExamType = 'ca_notary';
 var currentQuestionsTopic = null; // null = "All"
 var questionsCache = []; // full (unfiltered-by-topic) list for the current exam type
@@ -641,27 +649,76 @@ function settingsSaveButton(act, group, label) {
 // table pattern (ACCURACY_COLLAPSED_COUNT). Rows stay in the DOM always -- only display is
 // toggled -- so an in-progress (unsaved) edit in a collapsed row survives expanding/collapsing,
 // unlike a re-render that would reset inputs back to their loaded values.
+// State/type pill filters mirror the public site's track hub (renderHubStateFilterPills /
+// renderHubKindFilterPills) -- same combine-by-AND behavior, same "fresh filter starts collapsed
+// again" reasoning. Unlike the hub, this also layers a free-text filter on top; all three combine,
+// and Show-all/collapse applies to whatever the combined filter currently matches (so "Show all N"
+// always means N *matching* tracks, not the full 22).
 var PRICING_COLLAPSED_COUNT = 7;
 var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
+var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
+var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
+
+function pricingTrackMatchesFilters(t, stateFilter, kindFilter) {
+  return (!stateFilter || t[2] === stateFilter) && (!kindFilter || t[3] === kindFilter);
+}
+
+function renderPricingStateFilterPills() {
+  var codes = [];
+  EXAM_TYPES.forEach(function (t) { if (codes.indexOf(t[2]) === -1) codes.push(t[2]); });
+  codes.sort(function (a, b) { return (STATE_LABELS[a] || a).localeCompare(STATE_LABELS[b] || b); });
+  var allCount = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, '', pricingKindFilter); }).length;
+  var options = [['', 'All States (' + allCount + ')']].concat(codes.map(function (c) {
+    var count = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, c, pricingKindFilter); }).length;
+    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by state">' +
+    options.map(function (o) {
+      var active = pricingStateFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-pricing-state" data-state="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+function renderPricingKindFilterPills() {
+  var kinds = [];
+  EXAM_TYPES.forEach(function (t) { if (kinds.indexOf(t[3]) === -1) kinds.push(t[3]); });
+  kinds.sort(function (a, b) { return a.localeCompare(b); });
+  var allCount = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, pricingStateFilter, ''); }).length;
+  var options = [['', 'All Types (' + allCount + ')']].concat(kinds.map(function (k) {
+    var count = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, pricingStateFilter, k); }).length;
+    return [k, k + ' (' + count + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by exam type">' +
+    options.map(function (o) {
+      var active = pricingKindFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-pricing-kind" data-kind="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
 
 function updatePricingRowVisibility() {
   var rows = Array.prototype.slice.call(document.querySelectorAll('#pricing-rows-body tr[data-row-key]'));
   var q = pricingFilterQuery.trim().toLowerCase();
-  var shown = 0;
+  var matchCount = 0, shown = 0;
   rows.forEach(function (row) {
-    var matches = !q || row.children[0].textContent.toLowerCase().indexOf(q) !== -1;
-    var visible = matches && (!!q || pricingRowsExpanded || shown < PRICING_COLLAPSED_COUNT);
+    var matchesText = !q || row.children[0].textContent.toLowerCase().indexOf(q) !== -1;
+    var matchesCategory = (!pricingStateFilter || row.dataset.state === pricingStateFilter) &&
+      (!pricingKindFilter || row.dataset.kind === pricingKindFilter);
+    var matches = matchesText && matchesCategory;
+    if (matches) matchCount++;
+    var visible = matches && (pricingRowsExpanded || shown < PRICING_COLLAPSED_COUNT);
     row.style.display = visible ? '' : 'none';
     if (visible) shown++;
   });
   var toggleBtn = document.getElementById('pricing-show-all-toggle');
   if (!toggleBtn) return;
-  if (q || rows.length <= PRICING_COLLAPSED_COUNT) {
+  if (matchCount <= PRICING_COLLAPSED_COUNT) {
     toggleBtn.style.display = 'none';
   } else {
     toggleBtn.style.display = '';
-    toggleBtn.textContent = pricingRowsExpanded ? 'Show fewer ▴' : 'Show all ' + rows.length + ' ▾';
+    toggleBtn.textContent = pricingRowsExpanded ? 'Show fewer ▴' : 'Show all ' + matchCount + ' ▾';
   }
 }
 
@@ -677,10 +734,10 @@ async function renderSettings() {
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
   var pricingRows = EXAM_TYPES.map(function (t) {
-    var examType = t[0], label = t[1];
+    var examType = t[0], label = t[1], stateCode = t[2], examKind = t[3];
     var p = byExam[examType];
     var dollars = p ? (p.price_cents / 100).toFixed(2) : '';
-    return '<tr data-row-key="' + examType + '"><td>' + label + '</td><td>' +
+    return '<tr data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td><td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
       '</td></tr>';
   }).join('');
@@ -714,6 +771,8 @@ async function renderSettings() {
     '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p></div>' +
     settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
     '</div>' +
+    '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
+    '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
     '<table class="settings-edit-table"><thead><tr><th>Track</th><th>Price (USD)</th></tr></thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table>' +
@@ -798,6 +857,7 @@ function updateSettingsDirtyState(changedEl) {
 
 function filterPricingRows(query) {
   pricingFilterQuery = query;
+  pricingRowsExpanded = false; // fresh filter, start collapsed again rather than carry over stale expand state
   updatePricingRowVisibility();
 }
 
@@ -1192,6 +1252,22 @@ appEl.addEventListener('click', async function (e) {
     }
   } else if (act === 'toggle-pricing-rows') {
     pricingRowsExpanded = !pricingRowsExpanded;
+    updatePricingRowVisibility();
+  } else if (act === 'filter-pricing-state') {
+    var newPricingStateFilter = el.getAttribute('data-state');
+    if (newPricingStateFilter === pricingStateFilter) return;
+    pricingStateFilter = newPricingStateFilter;
+    pricingRowsExpanded = false;
+    document.getElementById('pricing-state-filter-wrap').innerHTML = renderPricingStateFilterPills();
+    document.getElementById('pricing-kind-filter-wrap').innerHTML = renderPricingKindFilterPills(); // its counts depend on the state filter too
+    updatePricingRowVisibility();
+  } else if (act === 'filter-pricing-kind') {
+    var newPricingKindFilter = el.getAttribute('data-kind');
+    if (newPricingKindFilter === pricingKindFilter) return;
+    pricingKindFilter = newPricingKindFilter;
+    pricingRowsExpanded = false;
+    document.getElementById('pricing-kind-filter-wrap').innerHTML = renderPricingKindFilterPills();
+    document.getElementById('pricing-state-filter-wrap').innerHTML = renderPricingStateFilterPills(); // its counts depend on the kind filter too
     updatePricingRowVisibility();
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {
