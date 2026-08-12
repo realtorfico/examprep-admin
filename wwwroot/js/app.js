@@ -664,7 +664,9 @@ var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
-var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active']];
+var PRICING_COLUMNS = [['track', 'Track'], ['state', 'State'], ['kind', 'Type'], ['price', 'Price (USD)'], ['active', 'Active'],
+  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['duration', 'Duration'], ['passScore', 'Pass Score']];
+var PRICING_CELL_INDEX = { track: 0, state: 1, kind: 2, price: 3, active: 4, questions: 5, examQs: 6, duration: 7, passScore: 8 };
 var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
 
 // Sorts by moving the existing <tr> DOM nodes (appendChild on an already-attached node relocates
@@ -676,29 +678,35 @@ function applyPricingSortOrder() {
   var tbody = document.getElementById('pricing-rows-body');
   if (!tbody) return;
   var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-row-key]'));
+  var key = pricingSort.key;
   rows.sort(function (a, b) {
     var av, bv;
-    if (pricingSort.key === 'price') {
+    if (key === 'price') {
       av = parseFloat(a.querySelector('.price-input').value); bv = parseFloat(b.querySelector('.price-input').value);
       av = isNaN(av) ? -Infinity : av; bv = isNaN(bv) ? -Infinity : bv;
+    } else if (key === 'active') {
+      av = a.querySelector('.track-active-input').checked ? 1 : 0;
+      bv = b.querySelector('.track-active-input').checked ? 1 : 0;
+    } else if (key === 'questions' || key === 'examQs' || key === 'passScore') {
+      // Plain numbers ("311") or a trailing "%" ("70%") -- parseFloat stops at the first
+      // non-numeric char either way, so no need for a separate data-* attribute.
+      av = parseFloat(a.children[PRICING_CELL_INDEX[key]].textContent);
+      bv = parseFloat(b.children[PRICING_CELL_INDEX[key]].textContent);
+    } else if (key === 'duration') {
+      // "60 min" / "Untimed" aren't directly comparable text -- sort by the raw seconds instead,
+      // stashed on the cell as data-seconds when the row was built.
+      av = Number(a.children[PRICING_CELL_INDEX.duration].dataset.seconds);
+      bv = Number(b.children[PRICING_CELL_INDEX.duration].dataset.seconds);
     } else {
-      av = a.children[0].textContent.toLowerCase(); bv = b.children[0].textContent.toLowerCase();
+      // track / state / kind -- plain text compare on whatever column this key maps to.
+      var idx = PRICING_CELL_INDEX[key];
+      av = a.children[idx].textContent.toLowerCase(); bv = b.children[idx].textContent.toLowerCase();
     }
     if (av < bv) return -1 * pricingSort.dir;
     if (av > bv) return 1 * pricingSort.dir;
     return 0;
   });
   rows.forEach(function (row) { tbody.appendChild(row); });
-}
-
-// Same shape as sortableHeaderRow(PRICING_COLUMNS, ...), plus one static, non-sortable "Questions"
-// column at the end (read-only question-bank inventory -- nothing to sort by user action here).
-function pricingTableHeadHtml() {
-  var sortableCells = PRICING_COLUMNS.map(function (c) {
-    var indicator = pricingSort.key === c[0] ? (pricingSort.dir === 1 ? ' ▲' : ' ▼') : '';
-    return '<th data-act="sort-pricing" data-key="' + c[0] + '">' + c[1] + indicator + '</th>';
-  }).join('');
-  return '<tr>' + sortableCells + '<th>Questions</th><th>Exam Qs</th><th>Duration</th><th>Pass Score</th></tr>';
 }
 
 function pricingTrackMatchesFilters(t, stateFilter, kindFilter) {
@@ -798,13 +806,16 @@ async function renderSettings() {
     var trackActiveOriginal = trackActive ? 'true' : 'false';
     var questionCount = questionCountByExam[examType] || 0;
     var examConfig = examConfigsData.configs[examType] || DEFAULT_EXAM_CONFIG;
-    return '<tr data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td><td>' +
+    return '<tr data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
+      '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
+      '<td class="muted">' + examKind + '</td>' +
+      '<td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
       '</td><td><label class="rule-active-label"><input type="checkbox" class="track-active-input" data-exam="' + examType + '" data-original="' + trackActiveOriginal + '"' +
       (trackActive ? ' checked' : '') + '></label></td>' +
       '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
-      '<td class="muted settings-readonly-cell">' + examDurationLabel(examConfig.durationSec) + '</td>' +
+      '<td class="muted settings-readonly-cell" data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
       '<td class="muted settings-readonly-cell">' + examConfig.passPercent + '%</td></tr>';
   }).join('');
 
@@ -837,7 +848,7 @@ async function renderSettings() {
     '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
-    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + pricingTableHeadHtml() + '</thead>' +
+    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
     '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
     '</section>' +
@@ -861,9 +872,6 @@ async function renderSettings() {
     '<input type="number" step="0.01" min="0" class="min-charge-input" data-original="' + minChargeDollars + '" value="' + minChargeDollars + '" placeholder="1.00">' +
     settingsSaveButton('save-min-charge', 'min-charge', 'Save') +
     '</div></section>' +
-    '</div>' +
-
-    '<div class="settings-col">' +
     '<section class="card settings-edit-group" data-group="alert-email">' +
     '<h3>Activity alerts</h3>' +
     '<p class="muted page-intro-text">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
@@ -1347,7 +1355,7 @@ appEl.addEventListener('click', async function (e) {
     if (pricingSort.key === pricingSortKey) pricingSort.dir *= -1;
     else { pricingSort.key = pricingSortKey; pricingSort.dir = 1; }
     applyPricingSortOrder();
-    document.getElementById('pricing-table-head').innerHTML = pricingTableHeadHtml();
+    document.getElementById('pricing-table-head').innerHTML = sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing');
     updatePricingRowVisibility(); // collapse cutoff depends on row order, which just changed
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {

@@ -163,10 +163,10 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 /* Settings page: grouped-save editing. Every input carries data-original; a group's Save button
    (in the same [data-group] container) stays disabled until something in it differs -- see
    updateSettingsDirtyState()/markSettingsGroupSaved() in app.js. */
-.settings-layout { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
-/* Single breakpoint straight to 1 column, not a 3->2->1 staircase -- with 3 items, a 2-column
-   step makes the grid wrap the 3rd column onto its own row underneath the (tall) 1st column,
-   which reads as it "floating down" below everything instead of sitting beside column 2. */
+/* Pricing (wide, most-edited) at 60%, everything else stacked into one 40% column instead of
+   split across two -- was 3 columns (75/12.5/12.5) but that spread the small settings cards too
+   thin. Single breakpoint straight to 1 column on narrow screens. */
+.settings-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
 @media (max-width: 900px) { .settings-layout { grid-template-columns: 1fr; } }
 .settings-col { display: flex; flex-direction: column; gap: 1.5rem; }
 .settings-edit-group h3 { margin-bottom: 0.4rem; }
