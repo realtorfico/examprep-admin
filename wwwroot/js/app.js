@@ -665,8 +665,8 @@ var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
 var PRICING_COLUMNS = [['track', 'Track'], ['state', 'State'], ['kind', 'Type'], ['price', 'Price (USD)'], ['active', 'Active'],
-  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['duration', 'Duration'], ['passScore', 'Pass Score']];
-var PRICING_CELL_INDEX = { track: 0, state: 1, kind: 2, price: 3, active: 4, questions: 5, examQs: 6, duration: 7, passScore: 8 };
+  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score']];
+var PRICING_CELL_INDEX = { track: 0, state: 1, kind: 2, price: 3, active: 4, questions: 5, examQs: 6, bankPct: 7, duration: 8, passScore: 9 };
 var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
 
 // Sorts by moving the existing <tr> DOM nodes (appendChild on an already-attached node relocates
@@ -687,11 +687,13 @@ function applyPricingSortOrder() {
     } else if (key === 'active') {
       av = a.querySelector('.track-active-input').checked ? 1 : 0;
       bv = b.querySelector('.track-active-input').checked ? 1 : 0;
-    } else if (key === 'questions' || key === 'examQs' || key === 'passScore') {
-      // Plain numbers ("311") or a trailing "%" ("70%") -- parseFloat stops at the first
-      // non-numeric char either way, so no need for a separate data-* attribute.
+    } else if (key === 'questions' || key === 'examQs' || key === 'passScore' || key === 'bankPct') {
+      // Plain numbers ("311"), a trailing "%" ("70%"), or "—" when there's no bank yet to divide
+      // by (bankPct) -- parseFloat stops at the first non-numeric char, and NaN (the "—" case)
+      // sorts as the lowest value rather than corrupting the whole sort.
       av = parseFloat(a.children[PRICING_CELL_INDEX[key]].textContent);
       bv = parseFloat(b.children[PRICING_CELL_INDEX[key]].textContent);
+      av = isNaN(av) ? -Infinity : av; bv = isNaN(bv) ? -Infinity : bv;
     } else if (key === 'duration') {
       // "60 min" / "Untimed" aren't directly comparable text -- sort by the raw seconds instead,
       // stashed on the cell as data-seconds when the row was built.
@@ -806,6 +808,7 @@ async function renderSettings() {
     var trackActiveOriginal = trackActive ? 'true' : 'false';
     var questionCount = questionCountByExam[examType] || 0;
     var examConfig = examConfigsData.configs[examType] || DEFAULT_EXAM_CONFIG;
+    var bankPctLabel = questionCount > 0 ? (examConfig.questionCount / questionCount * 100).toFixed(1) + '%' : '—';
     return '<tr data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
       '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted">' + examKind + '</td>' +
@@ -815,6 +818,7 @@ async function renderSettings() {
       (trackActive ? ' checked' : '') + '></label></td>' +
       '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
+      '<td class="muted settings-readonly-cell">' + bankPctLabel + '</td>' +
       '<td class="muted settings-readonly-cell" data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
       '<td class="muted settings-readonly-cell">' + examConfig.passPercent + '%</td></tr>';
   }).join('');
