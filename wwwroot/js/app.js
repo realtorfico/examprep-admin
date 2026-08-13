@@ -680,9 +680,9 @@ var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
-var PRICING_COLUMNS = [['price', 'Price (USD)'], ['active', 'Active'], ['track', 'Track'], ['state', 'State'], ['kind', 'Type'],
+var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['state', 'State'], ['kind', 'Type'],
   ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score']];
-var PRICING_CELL_INDEX = { price: 0, active: 1, track: 2, state: 3, kind: 4, questions: 5, examQs: 6, bankPct: 7, duration: 8, passScore: 9 };
+var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, state: 3, kind: 4, questions: 5, examQs: 6, bankPct: 7, duration: 8, passScore: 9 };
 var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
 
 // Sorts by moving the existing <tr> DOM nodes (appendChild on an already-attached node relocates
@@ -827,11 +827,11 @@ async function renderSettings() {
     var bankPct = questionCount > 0 ? (examConfig.questionCount / questionCount * 100) : null;
     var bankPctLabel = bankPct !== null ? bankPct.toFixed(1) + '%' : '—';
     var bankPctRowClass = bankPct === null ? '' : (bankPct > 25 ? 'settings-bankpct-high' : 'settings-bankpct-low');
-    return '<tr class="' + bankPctRowClass + '" data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' +
+    return '<tr class="' + bankPctRowClass + '" data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
+      '<td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
       '</td><td><label class="rule-active-label"><input type="checkbox" class="track-active-input" data-exam="' + examType + '" data-original="' + trackActiveOriginal + '"' +
       (trackActive ? ' checked' : '') + '></label></td>' +
-      '<td>' + label + '</td>' +
       '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted">' + examKind + '</td>' +
       '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
