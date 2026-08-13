@@ -185,6 +185,8 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .settings-edit-table tr.row-dirty { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .settings-edit-table tr.row-dirty td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .settings-readonly-cell { text-align: right; white-space: nowrap; }
+.settings-bankpct-high, .settings-bankpct-high td { color: var(--incorrect); font-weight: 600; }
+.settings-bankpct-low, .settings-bankpct-low td { color: var(--correct); font-weight: 600; }
 /* 7 columns wide once Questions/Exam Qs/Duration/Pass Score are all showing -- scrolls inside its
    own box on narrow viewports instead of forcing the whole page to scroll horizontally. */
 .settings-table-scroll { overflow-x: auto; }

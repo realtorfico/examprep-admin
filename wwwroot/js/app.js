@@ -824,8 +824,10 @@ async function renderSettings() {
     var trackActiveOriginal = trackActive ? 'true' : 'false';
     var questionCount = questionCountByExam[examType] || 0;
     var examConfig = examConfigsData.configs[examType] || DEFAULT_EXAM_CONFIG;
-    var bankPctLabel = questionCount > 0 ? (examConfig.questionCount / questionCount * 100).toFixed(1) + '%' : '—';
-    return '<tr data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
+    var bankPct = questionCount > 0 ? (examConfig.questionCount / questionCount * 100) : null;
+    var bankPctLabel = bankPct !== null ? bankPct.toFixed(1) + '%' : '—';
+    var bankPctRowClass = bankPct === null ? '' : (bankPct > 25 ? 'settings-bankpct-high' : 'settings-bankpct-low');
+    return '<tr class="' + bankPctRowClass + '" data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
       '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted">' + examKind + '</td>' +
       '<td>' +
