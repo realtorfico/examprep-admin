@@ -221,6 +221,10 @@ var EXAM_TYPES = [['ca_notary', 'California Notary', 'CA', 'Notary'],
   ['mi_motorcycle', 'MI Motorcycle', 'MI', 'Motorcycle'],
   ['mi_boating', 'Michigan Boating', 'MI', 'Boating'],
   ['mi_real_estate', 'Michigan Real Estate (Michigan-Specific)', 'MI', 'Real Estate'],
+  ['wa_driver', 'WA Driver', 'WA', 'Driver'], ['wa_cdl', 'WA Commercial (CDL)', 'WA', 'Commercial Driver (CDL)'],
+  ['wa_motorcycle', 'WA Motorcycle (Endorsement)', 'WA', 'Motorcycle'],
+  ['wa_real_estate', 'Washington Real Estate (Broker)', 'WA', 'Real Estate'],
+  ['wa_managing_broker', 'Washington Managing Broker', 'WA', 'Real Estate'],
   ['mlo', 'National MLO', 'US', 'Mortgage Loan Origination']];
 var STATE_LABELS = { CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', GA: 'Georgia', NC: 'North Carolina', VA: 'Virginia', MI: 'Michigan', WA: 'Washington', US: 'National' };
 var currentQuestionsExamType = 'ca_notary';
