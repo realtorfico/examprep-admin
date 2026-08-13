@@ -209,8 +209,20 @@ var EXAM_TYPES = [['ca_notary', 'California Notary', 'CA', 'Notary'],
   ['ga_driver', 'GA Driver', 'GA', 'Driver'], ['ga_cdl', 'GA Commercial (CDL)', 'GA', 'Commercial Driver (CDL)'],
   ['ga_motorcycle', 'GA Motorcycle', 'GA', 'Motorcycle'],
   ['ga_real_estate', 'Georgia Real Estate (Salesperson)', 'GA', 'Real Estate'],
+  ['nc_driver', 'NC Driver', 'NC', 'Driver'], ['nc_cdl', 'NC Commercial (CDL)', 'NC', 'Commercial Driver (CDL)'],
+  ['nc_real_estate', 'North Carolina Real Estate (Broker)', 'NC', 'Real Estate'],
+  ['nc_notary', 'North Carolina Notary', 'NC', 'Notary'],
+  ['nc_boating', 'North Carolina Boating', 'NC', 'Boating'],
+  ['va_driver', 'VA Driver', 'VA', 'Driver'], ['va_cdl', 'VA Commercial (CDL)', 'VA', 'Commercial Driver (CDL)'],
+  ['va_motorcycle', 'VA Motorcycle', 'VA', 'Motorcycle'],
+  ['va_real_estate', 'Virginia Real Estate (Salesperson)', 'VA', 'Real Estate'],
+  ['va_boating', 'Virginia Boating', 'VA', 'Boating'],
+  ['mi_driver', 'MI Driver', 'MI', 'Driver'], ['mi_cdl', 'MI Commercial (CDL)', 'MI', 'Commercial Driver (CDL)'],
+  ['mi_motorcycle', 'MI Motorcycle', 'MI', 'Motorcycle'],
+  ['mi_boating', 'Michigan Boating', 'MI', 'Boating'],
+  ['mi_real_estate', 'Michigan Real Estate (Michigan-Specific)', 'MI', 'Real Estate'],
   ['mlo', 'National MLO', 'US', 'Mortgage Loan Origination']];
-var STATE_LABELS = { CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', GA: 'Georgia', US: 'National' };
+var STATE_LABELS = { CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', GA: 'Georgia', NC: 'North Carolina', VA: 'Virginia', MI: 'Michigan', WA: 'Washington', US: 'National' };
 var currentQuestionsExamType = 'ca_notary';
 var currentQuestionsTopic = null; // null = "All"
 var questionsCache = []; // full (unfiltered-by-topic) list for the current exam type
