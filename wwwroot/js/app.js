@@ -304,6 +304,15 @@ function resolvedQuestionsExamTypes() {
     .map(function (t) { return t[0]; });
 }
 
+// "All kinds + all states" resolves to every track at once -- across 90+ tracks and growing, that's
+// an unbounded COUNT(*) on every keystroke/page turn even with the list itself paginated, and not a
+// real admin workflow (nobody needs to browse the *entire* bank unfiltered). Pick a kind and/or a
+// state -- picking just one (e.g. kind=Notary, no state = every *_notary track) is still fine and
+// stays index-assisted via exam_type IN (...).
+function questionsScopeTooUnbounded() {
+  return !currentQuestionsExamType && !questionsKindFilter && !questionsStateFilter;
+}
+
 function renderQuestionsKindFilterPills() {
   var kinds = [];
   EXAM_TYPES.forEach(function (t) { if (kinds.indexOf(t[3]) === -1) kinds.push(t[3]); });
@@ -404,6 +413,10 @@ function questionsPaginationHtml() {
 function drawQuestionsResults() {
   var el = document.getElementById('questions-results');
   if (!el) return;
+  if (questionsScopeTooUnbounded()) {
+    el.innerHTML = '<p class="muted">Pick a kind and/or a state above to browse questions — the full bank is too large to browse unfiltered.</p>';
+    return;
+  }
   var resolvedTypes = resolvedQuestionsExamTypes();
   var showExamColumn = resolvedTypes.length > 1;
   var rows = questionsPageRows.map(function (q) {
@@ -430,6 +443,7 @@ async function loadQuestionsTopics(resolvedTypes) {
 }
 
 async function loadQuestionsPage() {
+  if (questionsScopeTooUnbounded()) { questionsPageRows = []; questionsTotal = 0; return; }
   var resolvedTypes = resolvedQuestionsExamTypes();
   if (!resolvedTypes.length) { questionsPageRows = []; questionsTotal = 0; return; }
   var params = 'examType=' + encodeURIComponent(resolvedTypes.join(',')) +
