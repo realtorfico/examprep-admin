@@ -275,70 +275,208 @@ var STATE_LABELS = {
   WI: 'Wisconsin', WV: 'West Virginia', WY: 'Wyoming',
   US: 'National',
 };
-var currentQuestionsExamType = 'ca_notary';
-var currentQuestionsTopic = null; // null = "All"
-var questionsCache = []; // full (unfiltered-by-topic) list for the current exam type
+// Filter hierarchy is kind -> state -> topic: kind and state are pills over EXAM_TYPES (mutually
+// scoped counts, same pattern as the Settings > Course pricing table's filter pills below), and
+// resolve to a *set* of exam_types -- one when narrowed all the way to a single track, more than
+// one otherwise (e.g. kind=Notary with no state picked = every *_notary track at once). Topic only
+// applies once that set is exactly one track, since different states' tracks don't share a topic
+// taxonomy -- see resolvedQuestionsExamTypes()/loadQuestionsTopics() below.
+var currentQuestionsExamType = null; // an explicit single-track pick from the track list; null = scope is whatever the kind/state pills resolve to
+var currentQuestionsTopic = null; // null = "All" -- only sent to the server when scope is a single track
+var questionsKindFilter = ''; // '' = All kinds
+var questionsStateFilter = ''; // '' = All states
+var questionsTrackQuery = ''; // free-text filter over the track list itself (track name, not question content)
+var questionsSearchQuery = ''; // free-text search over question content, resolved server-side
+var QUESTIONS_PAGE_SIZE = 50;
+var questionsPage = 0; // 0-indexed
+var questionsPageRows = [];
+var questionsTotal = 0;
+var questionsTopicsCache = null; // [{topic, count}] when scope is one track; null when scope spans more than one (no topic tabs shown)
+var questionsSearchDebounceTimer = null;
 
-function renderExamSubTabs() {
-  return '<nav class="tabs sub-tabs">' + EXAM_TYPES.map(function (t) {
-    return '<a href="#" data-act="select-exam-tab" data-exam="' + t[0] + '"' +
-      (t[0] === currentQuestionsExamType ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
-  }).join('') + '</nav>';
+function questionsTrackMatchesFilters(t, kindFilter, stateFilter) {
+  return (!kindFilter || t[3] === kindFilter) && (!stateFilter || t[2] === stateFilter);
 }
 
-function distinctTopics(questions) {
-  var seen = {};
-  var topics = [];
-  questions.forEach(function (q) {
-    if (!seen[q.topic]) { seen[q.topic] = true; topics.push(q.topic); }
+function resolvedQuestionsExamTypes() {
+  if (currentQuestionsExamType) return [currentQuestionsExamType];
+  return EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, questionsKindFilter, questionsStateFilter); })
+    .map(function (t) { return t[0]; });
+}
+
+function renderQuestionsKindFilterPills() {
+  var kinds = [];
+  EXAM_TYPES.forEach(function (t) { if (kinds.indexOf(t[3]) === -1) kinds.push(t[3]); });
+  kinds.sort(function (a, b) { return a.localeCompare(b); });
+  var allCount = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, '', questionsStateFilter); }).length;
+  var options = [['', 'All Kinds (' + allCount + ')']].concat(kinds.map(function (k) {
+    var count = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, k, questionsStateFilter); }).length;
+    return [k, k + ' (' + count + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by exam kind">' +
+    options.map(function (o) {
+      var active = questionsKindFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-questions-kind" data-kind="' + escapeHtml(o[0]) + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + escapeHtml(o[1]) + '</button>';
+    }).join('') + '</div>';
+}
+
+function renderQuestionsStateFilterPills() {
+  var codes = [];
+  EXAM_TYPES.forEach(function (t) { if (codes.indexOf(t[2]) === -1) codes.push(t[2]); });
+  codes.sort(function (a, b) { return (STATE_LABELS[a] || a).localeCompare(STATE_LABELS[b] || b); });
+  var allCount = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, questionsKindFilter, ''); }).length;
+  var options = [['', 'All States (' + allCount + ')']].concat(codes.map(function (c) {
+    var count = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, questionsKindFilter, c); }).length;
+    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by state">' +
+    options.map(function (o) {
+      var active = questionsStateFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-questions-state" data-state="' + escapeHtml(o[0]) + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + escapeHtml(o[1]) + '</button>';
+    }).join('') + '</div>';
+}
+
+// The track list under the pills lets you drill down to one specific track (for its topic tabs)
+// even while broadly browsing a kind/state combo that spans several -- it's just EXAM_TYPES
+// filtered by the same kind/state pills plus this box's own free-text match on track name.
+function renderQuestionsTrackList() {
+  var q = questionsTrackQuery.trim().toLowerCase();
+  var matches = EXAM_TYPES.filter(function (t) {
+    return questionsTrackMatchesFilters(t, questionsKindFilter, questionsStateFilter) && (!q || t[1].toLowerCase().indexOf(q) !== -1);
   });
-  topics.sort();
-  return topics;
-}
-
-function topicCounts(questions) {
-  var counts = {};
-  questions.forEach(function (q) { counts[q.topic] = (counts[q.topic] || 0) + 1; });
-  return counts;
-}
-
-function renderTopicSubTabs(topics) {
-  var counts = topicCounts(questionsCache);
-  var tabs = [null].concat(topics);
-  return '<nav class="tabs sub-tabs topic-sub-tabs">' + tabs.map(function (t) {
-    var count = t === null ? questionsCache.length : (counts[t] || 0);
-    return '<a href="#" data-act="select-topic-tab" data-topic="' + (t === null ? '' : t) + '"' +
-      (t === currentQuestionsTopic ? ' aria-current="page"' : '') + '>' +
-      (t === null ? 'All' : t) + ' (' + count + ')</a>';
+  if (!matches.length) return '<p class="muted">No tracks match this filter.</p>';
+  return '<nav class="tabs sub-tabs track-picker-tabs">' + matches.map(function (t) {
+    return '<a href="#" data-act="select-exam-tab" data-exam="' + t[0] + '"' +
+      (t[0] === currentQuestionsExamType ? ' aria-current="page"' : '') + '>' + escapeHtml(t[1]) + '</a>';
   }).join('') + '</nav>';
+}
+
+function renderQuestionsTrackPicker() {
+  return '<div class="card questions-track-picker">' +
+    '<div class="settings-filter-pills-row" id="questions-kind-filter-wrap">' + renderQuestionsKindFilterPills() + '</div>' +
+    '<div class="settings-filter-pills-row" id="questions-state-filter-wrap">' + renderQuestionsStateFilterPills() + '</div>' +
+    '<input type="search" class="settings-filter-input" id="questions-track-search" placeholder="Filter tracks by name…" value="' + escapeHtml(questionsTrackQuery) + '">' +
+    '<div id="questions-track-list">' + renderQuestionsTrackList() + '</div>' +
+    '</div>';
+}
+
+function trackLabelFor(examType) {
+  var t = EXAM_TYPES.filter(function (e) { return e[0] === examType; })[0];
+  return t ? t[1] : examType;
+}
+
+function questionsScopeLabel(resolvedTypes) {
+  if (!resolvedTypes.length) return 'No tracks match this filter';
+  if (resolvedTypes.length === 1) return trackLabelFor(resolvedTypes[0]);
+  var kindLabel = questionsKindFilter || 'All kinds';
+  var stateLabel = questionsStateFilter ? (STATE_LABELS[questionsStateFilter] || questionsStateFilter) : 'all states';
+  return kindLabel + ' — ' + stateLabel + ' (' + resolvedTypes.length + ' tracks)';
+}
+
+function renderQuestionsTopicSubTabs() {
+  if (!questionsTopicsCache) return ''; // scope spans more than one track -- topic isn't a meaningful cross-track filter
+  var total = questionsTopicsCache.reduce(function (sum, t) { return sum + t.count; }, 0);
+  var tabs = [{ topic: null, count: total }].concat(questionsTopicsCache);
+  return '<nav class="tabs sub-tabs topic-sub-tabs">' + tabs.map(function (t) {
+    return '<a href="#" data-act="select-topic-tab" data-topic="' + (t.topic === null ? '' : escapeHtml(t.topic)) + '"' +
+      (t.topic === currentQuestionsTopic ? ' aria-current="page"' : '') + '>' +
+      (t.topic === null ? 'All' : escapeHtml(t.topic)) + ' (' + t.count + ')</a>';
+  }).join('') + '</nav>';
+}
+
+function questionsPaginationHtml() {
+  var start = questionsTotal === 0 ? 0 : questionsPage * QUESTIONS_PAGE_SIZE + 1;
+  var end = Math.min(questionsTotal, (questionsPage + 1) * QUESTIONS_PAGE_SIZE);
+  return '<div class="questions-pagination">' +
+    '<span class="muted">' + (questionsTotal ? ('Showing ' + start + '–' + end + ' of ' + questionsTotal) : 'No matching questions') + '</span>' +
+    '<div class="questions-pagination-buttons">' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="questions-prev-page"' + (questionsPage > 0 ? '' : ' disabled') + '>◂ Prev</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="questions-next-page"' + (end < questionsTotal ? '' : ' disabled') + '>Next ▸</button>' +
+    '</div></div>';
+}
+
+// Renders into #questions-results only -- the search box and Import button live in a stable shell
+// outside this wrapper (see renderQuestions() below) specifically so this can redraw on every
+// keystroke's (debounced) search, every pagination click, and every topic-tab click without ever
+// destroying and recreating the search <input> itself, which would drop its focus/cursor each time.
+function drawQuestionsResults() {
+  var el = document.getElementById('questions-results');
+  if (!el) return;
+  var resolvedTypes = resolvedQuestionsExamTypes();
+  var showExamColumn = resolvedTypes.length > 1;
+  var rows = questionsPageRows.map(function (q) {
+    return '<tr><td>' + escapeHtml(q.topic) + '</td>' +
+      (showExamColumn ? '<td class="muted">' + escapeHtml(trackLabelFor(q.exam_type)) + '</td>' : '') +
+      '<td>' + escapeHtml(q.question.slice(0, 80)) + '</td>' +
+      '<td>' + q.weight + '</td><td><span class="badge">' + escapeHtml(q.source || '—') + '</span></td>' +
+      '<td><button class="btn" data-act="delete-question" data-id="' + q.id + '">Delete</button></td></tr>';
+  }).join('');
+  var empty = questionsPageRows.length ? '' : '<p class="muted">No questions match this filter.</p>';
+  var headerCells = '<th>Topic</th>' + (showExamColumn ? '<th>Exam</th>' : '') + '<th>Question</th><th>Weight</th><th>Source</th><th></th>';
+
+  el.innerHTML = '<p class="questions-current-track">Viewing: <strong>' + escapeHtml(questionsScopeLabel(resolvedTypes)) + '</strong></p>' +
+    renderQuestionsTopicSubTabs() +
+    empty +
+    (questionsPageRows.length ? '<table><thead><tr>' + headerCells + '</tr></thead><tbody>' + rows + '</tbody></table>' : '') +
+    questionsPaginationHtml();
+}
+
+async function loadQuestionsTopics(resolvedTypes) {
+  if (resolvedTypes.length !== 1) { questionsTopicsCache = null; return; }
+  var data = await apiFetch('/console/questions/topics?examType=' + encodeURIComponent(resolvedTypes[0]));
+  questionsTopicsCache = data.topics;
+}
+
+async function loadQuestionsPage() {
+  var resolvedTypes = resolvedQuestionsExamTypes();
+  if (!resolvedTypes.length) { questionsPageRows = []; questionsTotal = 0; return; }
+  var params = 'examType=' + encodeURIComponent(resolvedTypes.join(',')) +
+    '&limit=' + QUESTIONS_PAGE_SIZE + '&offset=' + (questionsPage * QUESTIONS_PAGE_SIZE);
+  if (currentQuestionsTopic && resolvedTypes.length === 1) params += '&topic=' + encodeURIComponent(currentQuestionsTopic);
+  if (questionsSearchQuery.trim()) params += '&q=' + encodeURIComponent(questionsSearchQuery.trim());
+  var data = await apiFetch('/console/questions?' + params);
+  questionsPageRows = data.questions;
+  questionsTotal = data.total;
+}
+
+// Full reset for whenever the resolved track *set* changes (a track pick, or a kind/state pill) --
+// topic/search/page no longer mean what they meant for the old scope, so they're cleared too
+// (including the visible search box, updated directly rather than via a redraw -- see drawQuestionsResults()).
+async function refreshQuestionsScope() {
+  currentQuestionsTopic = null;
+  questionsSearchQuery = '';
+  questionsPage = 0;
+  var searchInputEl = document.getElementById('questions-search-input');
+  if (searchInputEl) searchInputEl.value = '';
+  await Promise.all([loadQuestionsTopics(resolvedQuestionsExamTypes()), loadQuestionsPage()]);
+  drawQuestionsResults();
+}
+
+// Reloads just the page for the *unchanged* scope -- topic tab clicks, search, and pagination all
+// keep whatever track set and topic counts are already loaded, no need to refetch either.
+async function refreshQuestionsPage() {
+  await loadQuestionsPage();
+  drawQuestionsResults();
+}
+
+// Like refreshQuestionsPage(), but also re-pulls topic counts -- a delete/import can add or zero
+// out a topic within the current scope, unlike a topic-tab click, search, or page turn.
+async function refreshQuestionsAfterMutation() {
+  await Promise.all([loadQuestionsTopics(resolvedQuestionsExamTypes()), loadQuestionsPage()]);
+  drawQuestionsResults();
 }
 
 async function renderQuestions() {
-  appEl.innerHTML = renderTabs('questions') + renderExamSubTabs() + '<p>Loading…</p>';
-  var data = await apiFetch('/console/questions?examType=' + currentQuestionsExamType);
-  questionsCache = data.questions;
-  drawQuestionsTable();
-}
-
-function drawQuestionsTable() {
-  var topics = distinctTopics(questionsCache);
-  var filtered = currentQuestionsTopic
-    ? questionsCache.filter(function (q) { return q.topic === currentQuestionsTopic; })
-    : questionsCache;
-
-  var rows = filtered.map(function (q) {
-    return '<tr><td>' + q.topic + '</td><td>' + q.question.slice(0, 80) + '</td>' +
-      '<td>' + q.weight + '</td><td><span class="badge">' + (q.source || '—') + '</span></td>' +
-      '<td><button class="btn" data-act="delete-question" data-id="' + q.id + '">Delete</button></td></tr>';
-  }).join('');
-  var empty = filtered.length ? '' : '<p class="muted">No questions yet for this exam/topic.</p>';
-
-  appEl.innerHTML = renderTabs('questions') + renderExamSubTabs() + renderTopicSubTabs(topics) +
-    '<div class="card"><button class="btn-primary" data-act="import-questions">Import JSON…</button> ' +
-    '<input type="file" id="import-file" class="hidden-file-input" accept="application/json"></div>' +
-    empty +
-    '<table><thead><tr><th>Topic</th><th>Question</th><th>Weight</th><th>Source</th><th></th></tr></thead>' +
-    '<tbody>' + rows + '</tbody></table>';
+  appEl.innerHTML = renderTabs('questions') + renderQuestionsTrackPicker() +
+    '<div class="card questions-toolbar">' +
+    '<input type="search" class="settings-filter-input questions-search-input" id="questions-search-input" placeholder="Search question text…">' +
+    '<button class="btn-primary btn-sm" data-act="import-questions">Import JSON…</button> ' +
+    '<input type="file" id="import-file" class="hidden-file-input" accept="application/json">' +
+    '</div>' +
+    '<div id="questions-results"><p class="muted">Loading…</p></div>';
+  await refreshQuestionsScope();
 }
 
 // ---- Stats --------------------------------------------------------------
@@ -1373,16 +1511,40 @@ appEl.addEventListener('click', async function (e) {
     renderRefunds();
   } else if (act === 'delete-question') {
     await apiFetch('/console/questions/delete', { method: 'POST', body: { id: el.getAttribute('data-id') } });
-    renderQuestions();
+    await refreshQuestionsAfterMutation();
   } else if (act === 'import-questions') {
     document.getElementById('import-file').click();
   } else if (act === 'select-exam-tab') {
     currentQuestionsExamType = el.getAttribute('data-exam');
-    currentQuestionsTopic = null; // topics differ per exam, so reset the topic filter
-    renderQuestions();
+    await refreshQuestionsScope();
+    var trackListEl = document.getElementById('questions-track-list');
+    if (trackListEl) trackListEl.innerHTML = renderQuestionsTrackList(); // just the active-track highlight
   } else if (act === 'select-topic-tab') {
     currentQuestionsTopic = el.getAttribute('data-topic') || null;
-    drawQuestionsTable();
+    questionsPage = 0;
+    await refreshQuestionsPage();
+  } else if (act === 'filter-questions-kind') {
+    var newQuestionsKind = el.getAttribute('data-kind');
+    if (newQuestionsKind === questionsKindFilter) return;
+    questionsKindFilter = newQuestionsKind;
+    currentQuestionsExamType = null; // changing the pills drops any specific track pick
+    document.getElementById('questions-kind-filter-wrap').innerHTML = renderQuestionsKindFilterPills();
+    document.getElementById('questions-state-filter-wrap').innerHTML = renderQuestionsStateFilterPills(); // its counts depend on the kind filter too
+    document.getElementById('questions-track-list').innerHTML = renderQuestionsTrackList();
+    await refreshQuestionsScope();
+  } else if (act === 'filter-questions-state') {
+    var newQuestionsState = el.getAttribute('data-state');
+    if (newQuestionsState === questionsStateFilter) return;
+    questionsStateFilter = newQuestionsState;
+    currentQuestionsExamType = null;
+    document.getElementById('questions-state-filter-wrap').innerHTML = renderQuestionsStateFilterPills();
+    document.getElementById('questions-kind-filter-wrap').innerHTML = renderQuestionsKindFilterPills(); // its counts depend on the state filter too
+    document.getElementById('questions-track-list').innerHTML = renderQuestionsTrackList();
+    await refreshQuestionsScope();
+  } else if (act === 'questions-prev-page') {
+    if (questionsPage > 0) { questionsPage--; await refreshQuestionsPage(); }
+  } else if (act === 'questions-next-page') {
+    if ((questionsPage + 1) * QUESTIONS_PAGE_SIZE < questionsTotal) { questionsPage++; await refreshQuestionsPage(); }
   } else if (act === 'refresh-stalled-buyers') {
     var daysInput = document.getElementById('stalled-days-input');
     var daysVal = daysInput ? parseInt(daysInput.value, 10) : NaN;
@@ -1566,6 +1728,21 @@ appEl.addEventListener('click', async function (e) {
 });
 
 appEl.addEventListener('input', function (e) {
+  // Both branches below update a narrower DOM slice than a full drawQuestionsResults()/renderQuestions()
+  // would -- typing into a search box that then gets destroyed and recreated on every keystroke's
+  // (debounced) redraw would keep dropping focus. See renderQuestionsTrackPicker()/drawQuestionsResults().
+  if (e.target.id === 'questions-track-search') {
+    questionsTrackQuery = e.target.value;
+    var trackListEl = document.getElementById('questions-track-list');
+    if (trackListEl) trackListEl.innerHTML = renderQuestionsTrackList();
+    return;
+  }
+  if (e.target.id === 'questions-search-input') {
+    questionsSearchQuery = e.target.value;
+    clearTimeout(questionsSearchDebounceTimer);
+    questionsSearchDebounceTimer = setTimeout(function () { questionsPage = 0; refreshQuestionsPage(); }, 300);
+    return;
+  }
   if (e.target.classList.contains('settings-filter-input')) { filterPricingRows(e.target.value); return; }
   if (e.target.hasAttribute('data-original')) updateSettingsDirtyState(e.target);
 });
@@ -1579,7 +1756,7 @@ document.addEventListener('change', async function (e) {
     var questions = JSON.parse(text);
     var result = await apiFetch('/console/questions/import', { method: 'POST', body: { questions: questions } });
     alert('Imported ' + result.imported + ' questions.');
-    renderQuestions();
+    await refreshQuestionsAfterMutation();
   }
 });
 

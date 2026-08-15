@@ -235,3 +235,15 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .exam-review-incorrect { color: var(--incorrect); font-weight: 600; }
 .progress-row-low { color: var(--incorrect); font-weight: 600; }
 .progress-row-good { color: var(--correct); font-weight: 600; }
+
+/* Questions tab: kind -> state -> topic pill hierarchy (kind/state pills reuse .settings-filter-pill
+   from the pricing table above), then a track list to drill into one specific track. Capped height
+   + internal scroll since a broad kind/state combo (or no filter at all) can match dozens of tracks --
+   see renderQuestionsTrackList() in app.js. */
+.questions-track-picker { margin-bottom: 1rem; }
+.track-picker-tabs { max-height: 8.5rem; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border); border-radius: 10px; margin: 0; }
+.questions-toolbar { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.questions-search-input { flex: 1; min-width: 14rem; margin-bottom: 0; }
+.questions-current-track { margin: 0 0 0.5rem; }
+.questions-pagination { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.questions-pagination-buttons { display: flex; gap: 0.5rem; }
