@@ -163,10 +163,15 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 /* Settings page: grouped-save editing. Every input carries data-original; a group's Save button
    (in the same [data-group] container) stays disabled until something in it differs -- see
    updateSettingsDirtyState()/markSettingsGroupSaved() in app.js. */
-/* Pricing (wide, most-edited) at 60%, everything else stacked into one 40% column instead of
-   split across two -- was 3 columns (75/12.5/12.5) but that spread the small settings cards too
-   thin. Single breakpoint straight to 1 column on narrow screens. */
-.settings-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
+/* Pricing (wide -- now has 11 columns including Exam Req?, most-edited) takes essentially all
+   remaining space; everything else stacked into one narrow column instead of split across two --
+   was 3 columns (75/12.5/12.5) but that spread the small settings cards too thin. Those stacked
+   cards are just a 3-column point-rules table plus label+input+button rows (.settings-inline-field
+   already wraps at min-width: 12rem on the label, see below), so a capped 360px is still comfortable
+   and frees the rest of the row for pricing's table-scroll to actually fit its columns without the
+   horizontal scroll this was introduced to avoid. Single breakpoint straight to 1 column on narrow
+   screens. */
+.settings-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 1.5rem; align-items: start; }
 @media (max-width: 900px) { .settings-layout { grid-template-columns: 1fr; } }
 .settings-col { display: flex; flex-direction: column; gap: 1.5rem; }
 .settings-edit-group h3 { margin-bottom: 0.4rem; }
