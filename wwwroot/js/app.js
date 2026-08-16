@@ -908,9 +908,21 @@ var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
-var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['state', 'State'], ['kind', 'Type'],
+var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['state', 'State'], ['kind', 'Type'], ['examReq', 'Exam Req?'],
   ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score']];
-var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, state: 3, kind: 4, questions: 5, examQs: 6, bankPct: 7, duration: 8, passScore: 9 };
+var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, state: 3, kind: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10 };
+
+// Notary tracks with no real proctored/state-administered exam -- "education-only" (AL/FL/GA/TX:
+// a course, no pass/fail assessment) and "application-only" (no exam, no course at all -- the other
+// 20 states from the 2026-08 notary expansion; only some are wired into EXAM_TYPES yet, the rest are
+// listed here too so this stays correct as each gets wired). Every non-Notary track (Driver, CDL,
+// Motorcycle, Real Estate, etc.) requires a real state exam, so this only ever needs to list
+// Notary-kind exceptions.
+var NOTARY_NO_EXAM_STATES = ['AL', 'FL', 'GA', 'TX', 'AK', 'DE', 'ID', 'IA', 'KS', 'KY', 'MA', 'MI',
+  'MN', 'MS', 'NH', 'ND', 'OK', 'SC', 'SD', 'TN', 'VT', 'VA', 'WA', 'WV'];
+function trackRequiresExam(examKind, stateCode) {
+  return examKind !== 'Notary' || NOTARY_NO_EXAM_STATES.indexOf(stateCode) === -1;
+}
 var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
 
 // Sorts by moving the existing <tr> DOM nodes (appendChild on an already-attached node relocates
@@ -1062,6 +1074,7 @@ async function renderSettings() {
       (trackActive ? ' checked' : '') + '></label></td>' +
       '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted">' + examKind + '</td>' +
+      '<td class="muted settings-readonly-cell">' + (trackRequiresExam(examKind, stateCode) ? 'Yes' : 'No') + '</td>' +
       '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + bankPctLabel + '</td>' +
