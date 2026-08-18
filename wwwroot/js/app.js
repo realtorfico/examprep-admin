@@ -967,8 +967,8 @@ var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
 var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['state', 'State'], ['kind', 'Type'], ['examReq', 'Exam Req?'],
-  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score']];
-var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, state: 3, kind: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10 };
+  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
+var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, state: 3, kind: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10, minCorrect: 11 };
 
 // Notary tracks with no real proctored/state-administered exam -- "education-only" (AL/FL/GA/TX:
 // a course, no pass/fail assessment) and "application-only" (no exam, no course at all -- the other
@@ -1001,7 +1001,7 @@ function applyPricingSortOrder() {
     } else if (key === 'active') {
       av = a.querySelector('.track-active-input').checked ? 1 : 0;
       bv = b.querySelector('.track-active-input').checked ? 1 : 0;
-    } else if (key === 'questions' || key === 'examQs' || key === 'passScore' || key === 'bankPct') {
+    } else if (key === 'questions' || key === 'examQs' || key === 'passScore' || key === 'bankPct' || key === 'minCorrect') {
       // Plain numbers ("311"), a trailing "%" ("70%"), or "—" when there's no bank yet to divide
       // by (bankPct) -- parseFloat stops at the first non-numeric char, and NaN (the "—" case)
       // sorts as the lowest value rather than corrupting the whole sort.
@@ -1107,7 +1107,7 @@ async function renderTracks() {
   var questionCountByExam = {};
   questionCountsData.counts.forEach(function (c) { questionCountByExam[c.exam_type] = c.count; });
   // Same fallback getExamConfig() itself uses server-side for any track without its own entry.
-  var DEFAULT_EXAM_CONFIG = { questionCount: 45, durationSec: 3600, passPercent: 70 };
+  var DEFAULT_EXAM_CONFIG = { questionCount: 45, durationSec: 3600, passPercent: 70, minCorrect: 32 };
   function examDurationLabel(durationSec) {
     return durationSec ? Math.round(durationSec / 60) + ' min' : 'Untimed';
   }
@@ -1139,7 +1139,8 @@ async function renderTracks() {
       '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + bankPctLabel + '</td>' +
       '<td class="muted settings-readonly-cell" data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
-      '<td class="muted settings-readonly-cell">' + examConfig.passPercent + '%</td></tr>';
+      '<td class="muted settings-readonly-cell">' + examConfig.passPercent + '%</td>' +
+      '<td class="muted settings-readonly-cell">' + (examConfig.minCorrect != null ? examConfig.minCorrect : '—') + '</td></tr>';
   }).join('');
 
   appEl.innerHTML = renderTabs('tracks') +
