@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers']];
+  var tabs = [['tracks', 'Tracks'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -1087,16 +1087,18 @@ function updatePricingRowVisibility() {
   }
 }
 
-async function renderSettings() {
-  appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
+// Tracks page: course pricing table, moved off Settings onto its own full-width page (2026-08-17)
+// -- the track list (22+ and counting) reads much better with the full viewport than squeezed into
+// one of two settings-page columns.
+async function renderTracks() {
+  appEl.innerHTML = renderTabs('tracks') + '<p>Loading…</p>';
   var results = await Promise.all([
     apiFetch('/console/pricing'),
-    apiFetch('/console/point-rules'),
     apiFetch('/console/settings'),
     apiFetch('/console/questions/counts'),
     apiFetch('/console/exam-configs'),
   ]);
-  var pricingData = results[0], pointRulesData = results[1], settingsData = results[2], questionCountsData = results[3], examConfigsData = results[4];
+  var pricingData = results[0], settingsData = results[1], questionCountsData = results[2], examConfigsData = results[3];
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
@@ -1140,6 +1142,35 @@ async function renderSettings() {
       '<td class="muted settings-readonly-cell">' + examConfig.passPercent + '%</td></tr>';
   }).join('');
 
+  appEl.innerHTML = renderTabs('tracks') +
+    '<section class="card settings-edit-group" data-group="pricing">' +
+    '<div class="settings-edit-toolbar">' +
+    '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p></div>' +
+    settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
+    '</div>' +
+    '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
+    '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
+    '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
+    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
+    '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
+    '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
+    '</section>';
+  pricingFilterQuery = '';
+  applyPricingSortOrder();
+  updatePricingRowVisibility();
+}
+
+async function renderSettings() {
+  appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
+  var results = await Promise.all([
+    apiFetch('/console/point-rules'),
+    apiFetch('/console/settings'),
+  ]);
+  var pointRulesData = results[0], settingsData = results[1];
+
+  var bySetting = {};
+  settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
+
   var pointRuleRows = pointRulesData.pointRules.map(function (r) {
     var activeOriginal = r.active ? 'true' : 'false';
     return '<tr data-row-key="' + r.task_key + '"><td>' + r.label + '</td><td>' +
@@ -1158,32 +1189,16 @@ async function renderSettings() {
   var refundFailurePctVal = Number.isFinite(refundFailurePct) ? refundFailurePct : 50;
 
   appEl.innerHTML = renderTabs('settings') +
-    '<div class="settings-layout">' +
+    '<div class="settings-grid">' +
 
-    '<div class="settings-col">' +
-    '<section class="card settings-edit-group" data-group="pricing">' +
-    '<div class="settings-edit-toolbar">' +
-    '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p></div>' +
-    settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
-    '</div>' +
-    '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
-    '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
-    '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
-    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
-    '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
-    '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
-    '</section>' +
-    '</div>' +
-
-    '<div class="settings-col">' +
     '<section class="card settings-edit-group" data-group="point-rules">' +
     '<div class="settings-edit-toolbar">' +
     '<div><h3>Point rules</h3><p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read ' +
     'directly as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p></div>' +
     settingsSaveButton('save-point-rules-changes', 'point-rules', 'Save changes') +
     '</div>' +
-    '<table class="settings-edit-table"><thead><tr><th>Task</th><th>Points</th><th>Active</th></tr></thead>' +
-    '<tbody>' + pointRuleRows + '</tbody></table>' +
+    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead><tr><th>Task</th><th>Points</th><th>Active</th></tr></thead>' +
+    '<tbody>' + pointRuleRows + '</tbody></table></div>' +
     '</section>' +
     '<section class="card settings-edit-group" data-group="min-charge">' +
     '<h3>Points discount floor</h3>' +
@@ -1219,12 +1234,8 @@ async function renderSettings() {
     '<input type="number" step="1" min="0" max="100" class="refund-failure-pct-input" data-original="' + refundFailurePctVal + '" value="' + refundFailurePctVal + '" placeholder="50">' +
     settingsSaveButton('save-refund-failure-pct', 'refund-pct', 'Save') +
     '</div></section>' +
-    '</div>' +
 
     '</div>';
-  pricingFilterQuery = '';
-  applyPricingSortOrder();
-  updatePricingRowVisibility();
 }
 
 // Recomputes dirty state (row highlight + Save button enabled/count) for whichever settings
@@ -1497,6 +1508,7 @@ async function renderStalledBuyers() {
 function route() {
   var view = (location.hash || '#/codes').replace('#/', '');
   if (view === 'codes') renderCodes();
+  else if (view === 'tracks') renderTracks();
   else if (view === 'questions') renderQuestions();
   else if (view === 'stats') renderStats();
   else if (view === 'points') renderPoints();
