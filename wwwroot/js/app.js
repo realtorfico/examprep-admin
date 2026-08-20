@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers']];
+  var tabs = [['tracks', 'Tracks'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -1164,6 +1164,11 @@ async function renderTracks() {
   updatePricingRowVisibility();
 }
 
+function parseCsvSetting(settingsResp, key) {
+  var row = settingsResp.settings.filter(function (s) { return s.key === key; })[0];
+  return (row ? row.value : '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+}
+
 async function renderSettings() {
   appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
   var results = await Promise.all([
@@ -1184,7 +1189,7 @@ async function renderSettings() {
   }).join('');
   var minChargeCents = parseInt(bySetting.min_paypal_charge_cents, 10);
   var minChargeDollars = Number.isFinite(minChargeCents) ? (minChargeCents / 100).toFixed(2) : '1.00';
-  var alertEmail = bySetting.admin_alert_email || '';
+  var visitorExcludedIps = (bySetting.visitor_excluded_ips || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   var accuracyPassPct = parseInt(bySetting.progress_accuracy_pass_pct, 10);
   var accuracyPassPctVal = Number.isFinite(accuracyPassPct) ? accuracyPassPct : 80;
   var coveragePassPct = parseInt(bySetting.progress_coverage_pass_pct, 10);
@@ -1212,14 +1217,20 @@ async function renderSettings() {
     '<input type="number" step="0.01" min="0" class="min-charge-input" data-original="' + minChargeDollars + '" value="' + minChargeDollars + '" placeholder="1.00">' +
     settingsSaveButton('save-min-charge', 'min-charge', 'Save') +
     '</div></section>' +
-    '<section class="card settings-edit-group" data-group="alert-email">' +
-    '<h3>Activity alerts</h3>' +
-    '<p class="muted page-intro-text">Get emailed when a referral is confirmed or converts, points are redeemed, or someone ' +
-    'buys a course. Leave blank to turn alerts off.</p>' +
+    '<section class="card settings-edit-group" data-group="visitor-exclusions">' +
+    '<h3>Visitor exclusions</h3>' +
+    '<p class="muted page-intro-text">IP addresses excluded from the Visitors tab entirely (e.g. your own office/home IP) -- ' +
+    'excluded traffic is never even recorded, and this also retroactively hides anything already logged from that IP.</p>' +
     '<div class="settings-inline-field">' +
-    '<input type="email" class="alert-email-input" data-original="' + alertEmail + '" value="' + alertEmail + '" placeholder="you@example.com">' +
-    settingsSaveButton('save-alert-email', 'alert-email', 'Save') +
-    '</div></section>' +
+    '<input type="text" id="new-visitor-exclusion-input" placeholder="e.g. 203.0.113.42">' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="add-visitor-exclusion">+ Add</button>' +
+    '</div>' +
+    (visitorExcludedIps.length
+      ? '<ul class="visitor-exclusion-list">' + visitorExcludedIps.map(function (ip) {
+          return '<li>' + escapeHtml(ip) + ' <button class="btn-secondary btn-sm" type="button" data-act="remove-visitor-exclusion" data-ip="' + escapeHtml(ip) + '">Remove</button></li>';
+        }).join('') + '</ul>'
+      : '<p class="muted">No exclusions yet.</p>') +
+    '</section>' +
     '<section class="card settings-edit-group" data-group="progress-colors">' +
     '<h3>Progress tab colors</h3>' +
     '<p class="muted page-intro-text">Thresholds (%) for when the student\'s headline Accuracy and Coverage numbers on the ' +
@@ -1507,6 +1518,117 @@ async function renderStalledBuyers() {
   await loadStalledBuyers();
 }
 
+// ---- Visitors (site_visits, populated by the public site's tracking beacon) -----------
+
+var visitorsCache = [];
+var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
+var VISITORS_NUMERIC_KEYS = new Set(['latitude', 'longitude', 'page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot']);
+var VISITORS_COLUMNS = [
+  ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
+  ['visitor_id', 'Visitor ID'], ['session_id', 'Session ID'],
+  ['ip_address', 'IP Address'], ['country', 'Country'], ['region', 'Region'], ['city', 'City'], ['timezone', 'Timezone'],
+  ['latitude', 'Latitude'], ['longitude', 'Longitude'],
+  ['device_type', 'Device'], ['browser', 'Browser'], ['os', 'OS'], ['is_bot', 'Bot?'],
+  ['referrer', 'Referrer'], ['utm_source', 'UTM Source'], ['utm_medium', 'UTM Medium'], ['utm_campaign', 'UTM Campaign'],
+  ['landing_path', 'Landing Page'], ['page_count', 'Pages Viewed'],
+];
+
+function formatDuration(sec) {
+  if (sec == null) return '—';
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? (m + 'm ' + s + 's') : (s + 's');
+}
+function shortId(id) { return id ? id.slice(0, 8) : '—'; }
+function fmtDate(ts) { return ts ? new Date(ts * 1000).toLocaleString() : '—'; }
+
+function drawVisitorsTable() {
+  var container = document.getElementById('visitors-table-container');
+  if (!container) return;
+  if (!visitorsCache.length) { container.innerHTML = '<p class="muted">No visitors recorded yet.</p>'; return; }
+  var rows = sortTableRows(visitorsCache, visitorsSort, VISITORS_NUMERIC_KEYS);
+  var body = rows.map(function (v) {
+    var pages;
+    try { pages = JSON.parse(v.pages_json || '[]'); } catch (e) { pages = []; }
+    return '<tr' + (v.is_bot ? ' class="visitor-row-bot"' : '') + '>' +
+      '<td>' + fmtDate(v.last_seen_at) + '</td><td>' + fmtDate(v.first_seen_at) + '</td>' +
+      '<td>' + formatDuration(v.duration_sec) + '</td>' +
+      '<td title="' + escapeHtml(v.visitor_id || '') + '">' + shortId(v.visitor_id) + '</td>' +
+      '<td title="' + escapeHtml(v.session_id || '') + '">' + shortId(v.session_id) + '</td>' +
+      '<td>' + escapeHtml(v.ip_address || '—') + '</td>' +
+      '<td>' + escapeHtml(v.country || '—') + '</td><td>' + escapeHtml(v.region || '—') + '</td>' +
+      '<td>' + escapeHtml(v.city || '—') + '</td><td>' + escapeHtml(v.timezone || '—') + '</td>' +
+      '<td>' + (v.latitude != null ? v.latitude : '—') + '</td><td>' + (v.longitude != null ? v.longitude : '—') + '</td>' +
+      '<td>' + escapeHtml(v.device_type || '—') + '</td><td>' + escapeHtml(v.browser || '—') + '</td>' +
+      '<td>' + escapeHtml(v.os || '—') + '</td><td>' + (v.is_bot ? 'Yes' : 'No') + '</td>' +
+      '<td class="visitor-referrer-cell" title="' + escapeHtml(v.referrer || '') + '">' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</td>' +
+      '<td>' + escapeHtml(v.utm_source || '—') + '</td><td>' + escapeHtml(v.utm_medium || '—') + '</td><td>' + escapeHtml(v.utm_campaign || '—') + '</td>' +
+      '<td>' + escapeHtml(v.landing_path || '—') + '</td>' +
+      '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
+      '</tr>';
+  }).join('');
+  container.innerHTML = '<div class="settings-table-scroll"><table><thead id="visitors-table-head">' +
+    sortableHeaderRow(VISITORS_COLUMNS, visitorsSort, 'sort-visitors') + '</thead><tbody>' + body + '</tbody></table></div>';
+}
+
+async function renderVisitors() {
+  appEl.innerHTML = renderTabs('visitors') +
+    '<p class="muted page-intro-text">Every recorded browser session on the public site, newest activity first. Click any column ' +
+    'header to sort. Hover a truncated cell (IDs, Referrer, Pages Viewed) for the full value. Add IPs to the exclusion list in ' +
+    'Settings to keep your own traffic out of this table.</p>' +
+    '<div id="visitors-table-container"><p class="muted">Loading…</p></div>';
+  var data = await apiFetch('/console/visitors');
+  visitorsCache = data.items || [];
+  drawVisitorsTable();
+}
+
+// ---- Alerts (admin_alert_rules) ---------------------------------------
+
+var alertRulesCache = [];
+var alertTriggersCache = [];
+
+function alertTriggerLabel(key) {
+  var t = alertTriggersCache.filter(function (t) { return t.key === key; })[0];
+  return t ? t.label : key;
+}
+
+function drawAlertsTable() {
+  var container = document.getElementById('alerts-table-container');
+  if (!container) return;
+  if (!alertRulesCache.length) { container.innerHTML = '<p class="muted">No alert rules configured yet -- add one below.</p>'; return; }
+  var body = alertRulesCache.map(function (r) {
+    return '<tr data-rule-id="' + r.id + '">' +
+      '<td>' + escapeHtml(alertTriggerLabel(r.trigger_key)) + '</td>' +
+      '<td><input type="email" class="alert-rule-email-input" data-id="' + r.id + '" value="' + escapeHtml(r.recipient_email) + '"></td>' +
+      '<td><label class="rule-active-label"><input type="checkbox" class="alert-rule-active-input" data-id="' + r.id + '"' +
+      (r.active ? ' checked' : '') + '> Active</label></td>' +
+      '<td><button class="btn-secondary btn-sm" type="button" data-act="save-alert-rule" data-id="' + r.id + '">Save</button> ' +
+      '<button class="btn-secondary btn-sm" type="button" data-act="delete-alert-rule" data-id="' + r.id + '">Delete</button></td>' +
+      '</tr>';
+  }).join('');
+  container.innerHTML = '<table><thead><tr><th>Trigger</th><th>Recipient Email</th><th>Active</th><th></th></tr></thead>' +
+    '<tbody>' + body + '</tbody></table>';
+}
+
+async function renderAlerts() {
+  appEl.innerHTML = renderTabs('alerts') +
+    '<p class="muted page-intro-text">Who gets emailed when something happens -- a purchase, a refund claim, a stalled site health ' +
+    'check, and so on. Add as many recipients per trigger as you want; uncheck Active to pause one without deleting it.</p>' +
+    '<div id="alerts-table-container"><p class="muted">Loading…</p></div>' +
+    '<div class="card generate-form">' +
+    '<label class="muted">Trigger</label>' +
+    '<select id="new-alert-trigger-select"></select>' +
+    '<label class="muted">Recipient email</label>' +
+    '<input type="email" id="new-alert-email-input" placeholder="you@example.com">' +
+    '<button class="btn-primary btn-sm" type="button" data-act="add-alert-rule">+ Add alert rule</button>' +
+    '</div>';
+  var data = await apiFetch('/console/alert-rules');
+  alertRulesCache = data.rules || [];
+  alertTriggersCache = data.triggers || [];
+  var select = document.getElementById('new-alert-trigger-select');
+  if (select) select.innerHTML = alertTriggersCache.map(function (t) { return '<option value="' + t.key + '">' + t.label + '</option>'; }).join('');
+  drawAlertsTable();
+}
+
 // ---- Routing + delegated events --------------------------------------
 
 function route() {
@@ -1520,6 +1642,8 @@ function route() {
   else if (view === 'refunds') renderRefunds();
   else if (view === 'stalled') renderStalledBuyers();
   else if (view === 'promotions') renderPromotions();
+  else if (view === 'visitors') renderVisitors();
+  else if (view === 'alerts') renderAlerts();
   else renderCodes();
 }
 window.addEventListener('hashchange', route);
@@ -1767,14 +1891,21 @@ appEl.addEventListener('click', async function (e) {
       body: { key: 'min_paypal_charge_cents', value: String(Math.round(minChargeDollarsVal * 100)) },
     });
     markSettingsGroupSaved(el);
-  } else if (act === 'save-alert-email') {
-    var alertEmailInput = document.querySelector('.alert-email-input');
-    var alertEmailVal = alertEmailInput.value.trim();
-    await apiFetch('/console/settings', {
-      method: 'POST',
-      body: { key: 'admin_alert_email', value: alertEmailVal },
-    });
-    markSettingsGroupSaved(el);
+  } else if (act === 'add-visitor-exclusion') {
+    var newExclusionInput = document.getElementById('new-visitor-exclusion-input');
+    var newIp = newExclusionInput.value.trim();
+    if (!newIp) { alert('Enter an IP address.'); return; }
+    var currentSettings = await apiFetch('/console/settings');
+    var list = parseCsvSetting(currentSettings, 'visitor_excluded_ips');
+    if (list.indexOf(newIp) === -1) list.push(newIp);
+    await apiFetch('/console/settings', { method: 'POST', body: { key: 'visitor_excluded_ips', value: list.join(',') } });
+    renderSettings();
+  } else if (act === 'remove-visitor-exclusion') {
+    var removeIp = el.getAttribute('data-ip');
+    var currentSettings2 = await apiFetch('/console/settings');
+    var list2 = parseCsvSetting(currentSettings2, 'visitor_excluded_ips').filter(function (ip) { return ip !== removeIp; });
+    await apiFetch('/console/settings', { method: 'POST', body: { key: 'visitor_excluded_ips', value: list2.join(',') } });
+    renderSettings();
   } else if (act === 'save-progress-colors') {
     var accuracyPassPctInput = document.querySelector('.accuracy-pass-pct-input');
     var coveragePassPctInput = document.querySelector('.coverage-pass-pct-input');
@@ -1802,6 +1933,38 @@ appEl.addEventListener('click', async function (e) {
       body: { key: 'refund_failure_percent', value: String(refundFailurePctVal) },
     });
     markSettingsGroupSaved(el);
+  } else if (act === 'sort-visitors') {
+    var visitorsSortKey = el.getAttribute('data-key');
+    if (visitorsSort.key === visitorsSortKey) visitorsSort.dir *= -1;
+    else { visitorsSort.key = visitorsSortKey; visitorsSort.dir = 1; }
+    drawVisitorsTable();
+  } else if (act === 'add-alert-rule') {
+    var newTriggerSelect = document.getElementById('new-alert-trigger-select');
+    var newEmailInput = document.getElementById('new-alert-email-input');
+    var newEmailVal = newEmailInput.value.trim();
+    if (!newEmailVal) { alert('Enter a recipient email.'); return; }
+    await apiFetch('/console/alert-rules/create', {
+      method: 'POST',
+      body: { triggerKey: newTriggerSelect.value, recipientEmail: newEmailVal },
+    });
+    renderAlerts();
+  } else if (act === 'save-alert-rule') {
+    var saveRuleId = el.getAttribute('data-id');
+    var row = el.closest('tr');
+    var emailInput = row.querySelector('.alert-rule-email-input');
+    var activeInput = row.querySelector('.alert-rule-active-input');
+    var emailVal = emailInput.value.trim();
+    if (!emailVal) { alert('Enter a recipient email.'); return; }
+    await apiFetch('/console/alert-rules/update', {
+      method: 'POST',
+      body: { id: saveRuleId, recipientEmail: emailVal, active: activeInput.checked },
+    });
+    renderAlerts();
+  } else if (act === 'delete-alert-rule') {
+    var deleteRuleId = el.getAttribute('data-id');
+    if (!confirm('Delete this alert rule?')) return;
+    await apiFetch('/console/alert-rules/delete', { method: 'POST', body: { id: deleteRuleId } });
+    renderAlerts();
   } else if (act === 'sort-accounts') {
     var accountsSortKey = el.getAttribute('data-key');
     if (accountsSort.key === accountsSortKey) accountsSort.dir *= -1;

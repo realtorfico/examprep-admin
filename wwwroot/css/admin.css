@@ -204,6 +204,12 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .settings-inline-field .min-charge-input, .settings-inline-field .accuracy-pass-pct-input,
 .settings-inline-field .coverage-pass-pct-input, .settings-inline-field .refund-failure-pct-input { width: 7rem; }
 .settings-saved-flash { margin-left: 0.5rem; color: var(--correct); font-size: 0.85rem; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
+.visitor-exclusion-list { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.visitor-exclusion-list li { display: flex; align-items: center; gap: 0.6rem; }
+/* Bot-flagged rows (see is_bot in the Visitors tab) dimmed rather than hidden -- still visible,
+   sortable, and filterable by eye, just visually deprioritized against real human traffic. */
+.visitor-row-bot { opacity: 0.55; }
+.visitor-referrer-cell { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-saved-flash.visible { opacity: 1; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; align-items: start; }
