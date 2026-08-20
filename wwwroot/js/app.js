@@ -1220,7 +1220,10 @@ async function renderSettings() {
     '<section class="card settings-edit-group" data-group="visitor-exclusions">' +
     '<h3>Visitor exclusions</h3>' +
     '<p class="muted page-intro-text">IP addresses excluded from the Visitors tab entirely (e.g. your own office/home IP) -- ' +
-    'excluded traffic is never even recorded, and this also retroactively hides anything already logged from that IP.</p>' +
+    'excluded traffic is never even recorded, and this also retroactively hides anything already logged from that IP. IP-based ' +
+    'exclusion breaks if your IP changes (new wifi, mobile data, VPN) -- for an exclusion that survives that, visit the public site ' +
+    'with <code>?pxq_exclude=1</code> added to the URL once (e.g. <code>https://yoursite.com/?pxq_exclude=1</code>) -- that browser ' +
+    'stops sending any visit data permanently, no IP list needed. Visit again with <code>?pxq_exclude=0</code> to re-enable.</p>' +
     '<div class="settings-inline-field">' +
     '<input type="text" id="new-visitor-exclusion-input" placeholder="e.g. 203.0.113.42">' +
     '<button class="btn-secondary btn-sm" type="button" data-act="add-visitor-exclusion">+ Add</button>' +
