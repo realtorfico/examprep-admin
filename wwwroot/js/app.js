@@ -1165,7 +1165,12 @@ async function renderTracks() {
     var examConfig = examConfigsData.configs[examType] || DEFAULT_EXAM_CONFIG;
     var bankPct = questionCount > 0 ? (examConfig.questionCount / questionCount * 100) : null;
     var bankPctLabel = bankPct !== null ? bankPct.toFixed(1) + '%' : '—';
-    var bankPctRowClass = bankPct === null ? '' : (bankPct > 25 ? 'settings-bankpct-high' : 'settings-bankpct-low');
+    var examRequired = trackRequiresExam(examKind, stateCode);
+    // Bold red is reserved for the actual risk case: a thin practice bank (>25% of the pool drawn
+    // per sitting) AND a real, state-required exam -- a low-stakes/no-exam-required track with the
+    // same thin-bank ratio isn't worth flagging the same way. Low-ratio tracks keep the existing
+    // green "healthy bank" indicator regardless of exam-required status.
+    var bankPctRowClass = bankPct === null ? '' : (bankPct > 25 && examRequired ? 'settings-bankpct-high' : (bankPct <= 25 ? 'settings-bankpct-low' : ''));
     return '<tr class="' + bankPctRowClass + '" data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
       '<td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
@@ -1173,7 +1178,7 @@ async function renderTracks() {
       (trackActive ? ' checked' : '') + '></label></td>' +
       '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted">' + examKind + '</td>' +
-      '<td class="muted settings-readonly-cell">' + (trackRequiresExam(examKind, stateCode) ? 'Yes' : 'No') + '</td>' +
+      '<td class="muted settings-readonly-cell">' + (examRequired ? 'Yes' : 'No') + '</td>' +
       '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + bankPctLabel + '</td>' +
