@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -155,6 +155,89 @@ function drawPromotions() {
     '<p class="muted page-intro-text">Shown on the public site\'s home page and/or checkout page. A promo with a ' +
     'code is a real discount applied at checkout; one with no code is just a marketing message.</p>' +
     '<div class="card"><div id="promotion-form-wrap">' + promotionFormHtml() + '</div>' + addButton + '</div>' +
+    empty + rows;
+}
+
+// ---- Category content (category-first landing pages) ----------------------
+// Copy for the public site's category landing pages (notary, driver, cdl, real_estate_salesperson,
+// etc — one page per category, aggregating every state that offers it). slug is the primary key
+// (also the site's URL segment), so save is always an upsert, unlike Promotions' separate
+// create/update. Feature tiles / testimonials / FAQ are each edited as one line per item, using a
+// "|"-separated shorthand instead of a repeatable-row widget, to keep this simple.
+
+var categoriesCache = [];
+var categoryFormState = null; // null (closed) | 'new' | the category object being edited
+
+function pipeLinesToObjects(text, fields) {
+  return String(text || '').split('\n').map(function (line) { return line.trim(); }).filter(Boolean).map(function (line) {
+    var parts = line.split('|').map(function (p) { return p.trim(); });
+    var obj = {};
+    fields.forEach(function (f, i) { obj[f] = parts[i] || ''; });
+    return obj;
+  });
+}
+function objectsToPipeLines(arr, fields) {
+  return (arr || []).map(function (obj) { return fields.map(function (f) { return obj[f] || ''; }).join(' | '); }).join('\n');
+}
+
+function categoryFormHtml() {
+  if (!categoryFormState) return '';
+  var editing = categoryFormState !== 'new';
+  var c = editing ? categoryFormState : {};
+  return '<form class="card promotion-form" data-act="save-category" data-slug="' + (editing ? escapeHtml(c.slug) : '') + '">' +
+    '<h3>' + (editing ? 'Edit category' : 'Add category') + '</h3>' +
+    '<label>Slug (URL segment, e.g. "notary", "real-estate-salesperson")<input type="text" name="slug" required' +
+    (editing ? ' readonly' : '') + ' value="' + escapeHtml(c.slug || '') + '"></label>' +
+    '<label>Label<input type="text" name="label" required value="' + escapeHtml(c.label || '') + '"></label>' +
+    '<label>Hero headline<input type="text" name="heroHeadline" value="' + escapeHtml(c.hero_headline || '') + '"></label>' +
+    '<label>Hero subhead<textarea name="heroSubhead" rows="2">' + escapeHtml(c.hero_subhead || '') + '</textarea></label>' +
+    '<label>Feature tiles — one per line, "icon | title | body"<textarea name="featureTiles" rows="3" placeholder="📘 | Current handbooks | Updated weekly with official state revisions.">' +
+    escapeHtml(objectsToPipeLines(c.featureTiles, ['icon', 'title', 'body'])) + '</textarea></label>' +
+    '<label>Testimonials — one per line, "quote | author"<textarea name="testimonials" rows="3" placeholder="Passed on the first try! | Marcus K.">' +
+    escapeHtml(objectsToPipeLines(c.testimonials, ['quote', 'author'])) + '</textarea></label>' +
+    '<label>Compliance copy<textarea name="complianceCopy" rows="3">' + escapeHtml(c.compliance_copy || '') + '</textarea></label>' +
+    '<label>FAQ — one per line, "question | answer"<textarea name="faq" rows="3" placeholder="How many questions are on the exam? | It varies by state...">' +
+    escapeHtml(objectsToPipeLines(c.faq, ['question', 'answer'])) + '</textarea></label>' +
+    '<label>SEO title<input type="text" name="seoTitle" value="' + escapeHtml(c.seo_title || '') + '"></label>' +
+    '<label>SEO description<textarea name="seoDescription" rows="2">' + escapeHtml(c.seo_description || '') + '</textarea></label>' +
+    '<label>SEO canonical URL<input type="text" name="seoCanonical" placeholder="https://passexamhq.com/notary" value="' + escapeHtml(c.seo_canonical || '') + '"></label>' +
+    '<label class="promotion-active-toggle"><input type="checkbox" name="active"' + (c.active === undefined || c.active ? ' checked' : '') + '> Active</label>' +
+    '<div class="progress-reset-actions">' +
+    '<button class="btn-primary" type="submit">Save</button>' +
+    '<button class="btn-secondary" type="button" data-act="cancel-category-form">Cancel</button>' +
+    '</div></form>';
+}
+
+function categoryRowHtml(c) {
+  return '<div class="card promotion-row">' +
+    '<div class="promotion-row-top">' +
+    '<strong>' + escapeHtml(c.label) + '</strong> ' +
+    '<span class="badge' + (c.active ? ' active' : '') + '">' + (c.active ? 'Active' : 'Inactive') + '</span> ' +
+    '<span class="muted">/' + escapeHtml(c.slug) + '</span>' +
+    '</div>' +
+    '<p class="muted promotion-row-body">' + escapeHtml(c.hero_headline || '(no hero headline set)') + '</p>' +
+    '<div class="promotion-row-actions">' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="edit-category" data-slug="' + escapeHtml(c.slug) + '">Edit</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="delete-category" data-slug="' + escapeHtml(c.slug) + '">Delete</button>' +
+    '</div></div>';
+}
+
+async function renderCategories() {
+  appEl.innerHTML = renderTabs('categories') + '<p>Loading…</p>';
+  var data = await apiFetch('/console/category-content');
+  categoriesCache = data.categories;
+  drawCategories();
+}
+
+function drawCategories() {
+  var rows = categoriesCache.map(categoryRowHtml).join('');
+  var empty = categoriesCache.length ? '' : '<p class="muted">No categories yet.</p>';
+  var addButton = categoryFormState ? '' : '<button class="btn-primary btn-sm" type="button" data-act="add-category">+ Add category</button>';
+  appEl.innerHTML = renderTabs('categories') +
+    '<p class="muted page-intro-text">Copy shown on the public site\'s category landing pages (one page per category, e.g. Notary, ' +
+    'CDL, Real Estate Salesperson — aggregating every state that offers it). Pass rate, track count, and topic breakdown are computed ' +
+    'from the Tracks tab\'s data automatically and aren\'t edited here.</p>' +
+    '<div class="card"><div id="category-form-wrap">' + categoryFormHtml() + '</div>' + addButton + '</div>' +
     empty + rows;
 }
 
@@ -1008,9 +1091,9 @@ var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
-var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['state', 'State'], ['kind', 'Type'], ['examReq', 'Exam Req?'],
+var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['kind', 'Category'], ['state', 'State'], ['examReq', 'Exam Req?'],
   ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
-var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, state: 3, kind: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10, minCorrect: 11 };
+var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, kind: 3, state: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10, minCorrect: 11 };
 
 // Notary tracks with no real proctored/state-administered exam -- "education-only" (AL/FL/GA/TX:
 // a course, no pass/fail assessment) and "application-only" (no exam, no course at all -- the other
@@ -1179,8 +1262,8 @@ async function renderTracks() {
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
       '</td><td><label class="rule-active-label"><input type="checkbox" class="track-active-input" data-exam="' + examType + '" data-original="' + trackActiveOriginal + '"' +
       (trackActive ? ' checked' : '') + '></label></td>' +
-      '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted">' + examKind + '</td>' +
+      '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted settings-readonly-cell">' + (examRequired ? 'Yes' : 'No') + '</td>' +
       '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
@@ -1196,8 +1279,8 @@ async function renderTracks() {
     '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p></div>' +
     settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
     '</div>' +
-    '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
+    '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
     '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
@@ -1682,6 +1765,7 @@ function route() {
   var view = (location.hash || '#/codes').replace('#/', '');
   if (view === 'codes') renderCodes();
   else if (view === 'tracks') renderTracks();
+  else if (view === 'categories') renderCategories();
   else if (view === 'questions') renderQuestions();
   else if (view === 'stats') renderStats();
   else if (view === 'points') renderPoints();
@@ -1763,6 +1847,31 @@ appEl.addEventListener('submit', async function (e) {
     }
     promotionFormState = null;
     renderPromotions();
+  } else if (act === 'save-category') {
+    e.preventDefault();
+    var cf = e.target;
+    var body = {
+      slug: cf.slug.value.trim(),
+      label: cf.label.value.trim(),
+      heroHeadline: cf.heroHeadline.value.trim() || undefined,
+      heroSubhead: cf.heroSubhead.value.trim() || undefined,
+      featureTiles: pipeLinesToObjects(cf.featureTiles.value, ['icon', 'title', 'body']),
+      testimonials: pipeLinesToObjects(cf.testimonials.value, ['quote', 'author']),
+      complianceCopy: cf.complianceCopy.value.trim() || undefined,
+      faq: pipeLinesToObjects(cf.faq.value, ['question', 'answer']),
+      seoTitle: cf.seoTitle.value.trim() || undefined,
+      seoDescription: cf.seoDescription.value.trim() || undefined,
+      seoCanonical: cf.seoCanonical.value.trim() || undefined,
+      active: cf.active.checked,
+    };
+    try {
+      await apiFetch('/console/category-content/upsert', { method: 'POST', body: body });
+    } catch (err) {
+      alert('Could not save this category. (' + ((err.data && err.data.error) || err.message || 'unknown error') + ')');
+      return;
+    }
+    categoryFormState = null;
+    renderCategories();
   }
 });
 
@@ -1800,6 +1909,20 @@ appEl.addEventListener('click', async function (e) {
       method: 'POST', body: { id: el.getAttribute('data-id'), direction: el.getAttribute('data-direction') },
     });
     renderPromotions();
+  } else if (act === 'add-category') {
+    categoryFormState = 'new';
+    drawCategories();
+  } else if (act === 'edit-category') {
+    var editSlug = el.getAttribute('data-slug');
+    categoryFormState = categoriesCache.filter(function (c) { return c.slug === editSlug; })[0] || 'new';
+    drawCategories();
+  } else if (act === 'cancel-category-form') {
+    categoryFormState = null;
+    drawCategories();
+  } else if (act === 'delete-category') {
+    if (!confirm('Delete this category\'s landing page copy? This cannot be undone.')) return;
+    await apiFetch('/console/category-content/delete', { method: 'POST', body: { slug: el.getAttribute('data-slug') } });
+    renderCategories();
   } else if (act === 'review-refund-claim') {
     var claimId = el.getAttribute('data-claim-id');
     var reviewStatus = el.getAttribute('data-status');
