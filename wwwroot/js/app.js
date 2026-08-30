@@ -273,242 +273,29 @@ async function renderCodes() {
 
 // 3rd/4th entries (stateCode, examKind) mirror HUB_EXAMS on the public site 1:1 -- lets the
 // Settings > Course pricing table offer the same state/type filters as the public track hub.
-var EXAM_TYPES = [['ca_notary', 'California Notary', 'CA', 'Notary'],
-  ['ca_driver', 'CA Driver (Class C)', 'CA', 'Driver'], ['ca_cdl', 'CA Commercial (CDL)', 'CA', 'Commercial Driver (CDL)'],
-  ['ca_motorcycle', 'CA Motorcycle (M1/M2)', 'CA', 'Motorcycle'],
-  ['tx_driver', 'TX Driver', 'TX', 'Driver'], ['tx_cdl', 'TX Commercial (CDL)', 'TX', 'Commercial Driver (CDL)'],
-  ['tx_motorcycle', 'TX Motorcycle', 'TX', 'Motorcycle'],
-  ['tx_real_estate', 'Texas Real Estate (Sales Agent)', 'TX', 'Real Estate Salesperson'],
-  ['fl_driver', 'FL Driver', 'FL', 'Driver'], ['fl_cdl', 'FL Commercial (CDL)', 'FL', 'Commercial Driver (CDL)'],
-  ['fl_real_estate', 'Florida Real Estate (Sales Associate)', 'FL', 'Real Estate Salesperson'],
-  ['ny_driver', 'NY Driver', 'NY', 'Driver'], ['ny_cdl', 'NY Commercial (CDL)', 'NY', 'Commercial Driver (CDL)'],
-  ['ny_motorcycle', 'NY Motorcycle', 'NY', 'Motorcycle'],
-  ['ny_real_estate', 'New York Real Estate (Salesperson)', 'NY', 'Real Estate Salesperson'],
-  ['ny_notary', 'New York Notary', 'NY', 'Notary'],
-  ['il_driver', 'IL Driver', 'IL', 'Driver'], ['il_real_estate', 'Illinois Real Estate (Broker)', 'IL', 'Real Estate Salesperson'],
-  ['il_managing_broker', 'Illinois Managing Broker', 'IL', 'Real Estate Broker'],
-  ['pa_driver', 'PA Driver', 'PA', 'Driver'], ['pa_cdl', 'PA Commercial (CDL)', 'PA', 'Commercial Driver (CDL)'],
-  ['pa_motorcycle', 'PA Motorcycle', 'PA', 'Motorcycle'],
-  ['pa_real_estate', 'Pennsylvania Real Estate (Salesperson)', 'PA', 'Real Estate Salesperson'],
-  ['ca_real_estate', 'California Real Estate (Salesperson)', 'CA', 'Real Estate Salesperson'],
-  ['oh_driver', 'OH Driver', 'OH', 'Driver'], ['oh_cdl', 'OH Commercial (CDL)', 'OH', 'Commercial Driver (CDL)'],
-  ['oh_motorcycle', 'OH Motorcycle', 'OH', 'Motorcycle'],
-  ['oh_real_estate', 'Ohio Real Estate (Salesperson)', 'OH', 'Real Estate Salesperson'],
-  ['oh_boating', 'Ohio Boating', 'OH', 'Boating'],
-  ['ga_driver', 'GA Driver', 'GA', 'Driver'], ['ga_cdl', 'GA Commercial (CDL)', 'GA', 'Commercial Driver (CDL)'],
-  ['ga_motorcycle', 'GA Motorcycle', 'GA', 'Motorcycle'],
-  ['ga_real_estate', 'Georgia Real Estate (Salesperson)', 'GA', 'Real Estate Salesperson'],
-  ['nc_driver', 'NC Driver', 'NC', 'Driver'], ['nc_cdl', 'NC Commercial (CDL)', 'NC', 'Commercial Driver (CDL)'],
-  ['nc_motorcycle', 'NC Motorcycle', 'NC', 'Motorcycle'],
-  ['nc_real_estate', 'North Carolina Real Estate (Broker)', 'NC', 'Real Estate Salesperson'],
-  ['nc_notary', 'North Carolina Notary', 'NC', 'Notary'],
-  ['nc_boating', 'North Carolina Boating', 'NC', 'Boating'],
-  ['va_driver', 'VA Driver', 'VA', 'Driver'], ['va_cdl', 'VA Commercial (CDL)', 'VA', 'Commercial Driver (CDL)'],
-  ['va_motorcycle', 'VA Motorcycle', 'VA', 'Motorcycle'],
-  ['va_real_estate', 'Virginia Real Estate (Salesperson)', 'VA', 'Real Estate Salesperson'],
-  ['va_boating', 'Virginia Boating', 'VA', 'Boating'],
-  ['mi_driver', 'MI Driver', 'MI', 'Driver'], ['mi_cdl', 'MI Commercial (CDL)', 'MI', 'Commercial Driver (CDL)'],
-  ['mi_motorcycle', 'MI Motorcycle', 'MI', 'Motorcycle'],
-  ['mi_boating', 'Michigan Boating', 'MI', 'Boating'],
-  ['ca_boating', 'California Boating', 'CA', 'Boating'],
-  ['tx_boating', 'Texas Boating', 'TX', 'Boating'],
-  ['fl_boating', 'Florida Boating', 'FL', 'Boating'],
-  ['ny_boating', 'New York Boating', 'NY', 'Boating'],
-  ['pa_boating', 'Pennsylvania Boating', 'PA', 'Boating'],
-  ['il_boating', 'Illinois Boating', 'IL', 'Boating'],
-  ['ga_boating', 'Georgia Boating', 'GA', 'Boating'],
-  ['nj_boating', 'New Jersey Boating', 'NJ', 'Boating'],
-  ['wa_boating', 'Washington Boating', 'WA', 'Boating'],
-  ['az_boating', 'Arizona Boating', 'AZ', 'Boating'],
-  ['ma_boating', 'Massachusetts Boating', 'MA', 'Boating'],
-  ['tn_boating', 'Tennessee Boating', 'TN', 'Boating'],
-  ['mo_boating', 'Missouri Boating', 'MO', 'Boating'],
-  ['md_boating', 'Maryland Boating', 'MD', 'Boating'],
-  ['sc_boating', 'South Carolina Boating', 'SC', 'Boating'],
-  ['mn_boating', 'Minnesota Boating', 'MN', 'Boating'],
-  ['wi_boating', 'Wisconsin Boating', 'WI', 'Boating'],
-  ['al_boating', 'Alabama Boating', 'AL', 'Boating'],
-  ['la_boating', 'Louisiana Boating', 'LA', 'Boating'],
-  ['nv_boating', 'Nevada Boating', 'NV', 'Boating'],
-  ['ct_boating', 'Connecticut Boating', 'CT', 'Boating'],
-  ['mi_real_estate', 'Michigan Real Estate (Michigan-Specific)', 'MI', 'Real Estate Salesperson'],
-  ['wa_driver', 'WA Driver', 'WA', 'Driver'], ['wa_cdl', 'WA Commercial (CDL)', 'WA', 'Commercial Driver (CDL)'],
-  ['wa_motorcycle', 'WA Motorcycle (Endorsement)', 'WA', 'Motorcycle'],
-  ['al_motorcycle', 'AL Motorcycle', 'AL', 'Motorcycle'],
-  ['ar_motorcycle', 'AR Motorcycle', 'AR', 'Motorcycle'],
-  ['ct_motorcycle', 'CT Motorcycle', 'CT', 'Motorcycle'],
-  ['mn_motorcycle', 'MN Motorcycle', 'MN', 'Motorcycle'],
-  ['ms_motorcycle', 'MS Motorcycle', 'MS', 'Motorcycle'],
-  ['ut_motorcycle', 'UT Motorcycle', 'UT', 'Motorcycle'],
-  ['wa_real_estate', 'Washington Real Estate (Broker)', 'WA', 'Real Estate Salesperson'],
-  ['wa_managing_broker', 'Washington Managing Broker', 'WA', 'Real Estate Broker'],
-  // 38 states added 2026-08-15 (see passexamhq-api's "Add EXAM_CONFIGS entries for the 38
-  // newly-built real_estate tracks") -- EXAM_CONFIGS exist but most aren't D1-loaded/hub-wired
-  // yet, so pricing/active/question-count here may show blank/0 until that catches up.
-  ['ak_real_estate', 'Alaska Real Estate', 'AK', 'Real Estate Salesperson'],
-  ['al_real_estate', 'Alabama Real Estate', 'AL', 'Real Estate Salesperson'],
-  ['ar_real_estate', 'Arkansas Real Estate', 'AR', 'Real Estate Salesperson'],
-  ['az_real_estate', 'Arizona Real Estate', 'AZ', 'Real Estate Salesperson'],
-  ['co_real_estate', 'Colorado Real Estate', 'CO', 'Real Estate Salesperson'],
-  ['ct_real_estate', 'Connecticut Real Estate', 'CT', 'Real Estate Salesperson'],
-  ['de_real_estate', 'Delaware Real Estate', 'DE', 'Real Estate Salesperson'],
-  ['hi_real_estate', 'Hawaii Real Estate', 'HI', 'Real Estate Salesperson'],
-  ['ia_real_estate', 'Iowa Real Estate', 'IA', 'Real Estate Salesperson'],
-  ['id_real_estate', 'Idaho Real Estate', 'ID', 'Real Estate Salesperson'],
-  ['in_real_estate', 'Indiana Real Estate', 'IN', 'Real Estate Salesperson'],
-  ['ks_real_estate', 'Kansas Real Estate', 'KS', 'Real Estate Salesperson'],
-  ['ky_real_estate', 'Kentucky Real Estate', 'KY', 'Real Estate Salesperson'],
-  ['la_real_estate', 'Louisiana Real Estate', 'LA', 'Real Estate Salesperson'],
-  ['ma_real_estate', 'Massachusetts Real Estate', 'MA', 'Real Estate Salesperson'],
-  ['md_real_estate', 'Maryland Real Estate', 'MD', 'Real Estate Salesperson'],
-  ['me_real_estate', 'Maine Real Estate', 'ME', 'Real Estate Salesperson'],
-  ['mn_real_estate', 'Minnesota Real Estate', 'MN', 'Real Estate Salesperson'],
-  ['mo_real_estate', 'Missouri Real Estate', 'MO', 'Real Estate Salesperson'],
-  ['ms_real_estate', 'Mississippi Real Estate', 'MS', 'Real Estate Salesperson'],
-  ['mt_real_estate', 'Montana Real Estate', 'MT', 'Real Estate Salesperson'],
-  ['nd_real_estate', 'North Dakota Real Estate', 'ND', 'Real Estate Salesperson'],
-  ['ne_real_estate', 'Nebraska Real Estate', 'NE', 'Real Estate Salesperson'],
-  ['nh_real_estate', 'New Hampshire Real Estate', 'NH', 'Real Estate Salesperson'],
-  ['nj_real_estate', 'New Jersey Real Estate', 'NJ', 'Real Estate Salesperson'],
-  ['nm_real_estate', 'New Mexico Real Estate', 'NM', 'Real Estate Salesperson'],
-  ['nv_real_estate', 'Nevada Real Estate', 'NV', 'Real Estate Salesperson'],
-  ['ok_real_estate', 'Oklahoma Real Estate', 'OK', 'Real Estate Salesperson'],
-  ['or_real_estate', 'Oregon Real Estate', 'OR', 'Real Estate Salesperson'],
-  ['ri_real_estate', 'Rhode Island Real Estate', 'RI', 'Real Estate Salesperson'],
-  ['sc_real_estate', 'South Carolina Real Estate', 'SC', 'Real Estate Salesperson'],
-  ['sd_real_estate', 'South Dakota Real Estate', 'SD', 'Real Estate Salesperson'],
-  ['tn_real_estate', 'Tennessee Real Estate', 'TN', 'Real Estate Salesperson'],
-  ['ut_real_estate', 'Utah Real Estate', 'UT', 'Real Estate Salesperson'],
-  ['vt_real_estate', 'Vermont Real Estate', 'VT', 'Real Estate Salesperson'],
-  ['wi_real_estate', 'Wisconsin Real Estate', 'WI', 'Real Estate Salesperson'],
-  ['wv_real_estate', 'West Virginia Real Estate', 'WV', 'Real Estate Salesperson'],
-  ['wy_real_estate', 'Wyoming Real Estate', 'WY', 'Real Estate Salesperson'],
-  ['mlo', 'National MLO', 'US', 'Mortgage Loan Origination'],
-  ["al_notary", "Alabama Notary", "AL", "Notary"],
-  ["fl_notary", "Florida Notary", "FL", "Notary"],
-  ["ga_notary", "Georgia Notary", "GA", "Notary"],
-  ["tx_notary", "Texas Notary", "TX", "Notary"],
-  ["ak_notary", "Alaska Notary", "AK", "Notary"],
-  ["de_notary", "Delaware Notary", "DE", "Notary"],
-  ["id_notary", "Idaho Notary", "ID", "Notary"],
-  ["ia_notary", "Iowa Notary", "IA", "Notary"],
-  ["ks_notary", "Kansas Notary", "KS", "Notary"],
-  ["ky_notary", "Kentucky Notary", "KY", "Notary"],
-  ["ma_notary", "Massachusetts Notary", "MA", "Notary"],
-  ["mi_notary", "Michigan Notary", "MI", "Notary"],
-  ["mn_notary", "Minnesota Notary", "MN", "Notary"],
-  ["ms_notary", "Mississippi Notary", "MS", "Notary"],
-  ["nh_notary", "New Hampshire Notary", "NH", "Notary"],
-  ["nd_notary", "North Dakota Notary", "ND", "Notary"],
-  ["ok_notary", "Oklahoma Notary", "OK", "Notary"],
-  ["sc_notary", "South Carolina Notary", "SC", "Notary"],
-  ["sd_notary", "South Dakota Notary", "SD", "Notary"],
-  ["tn_notary", "Tennessee Notary", "TN", "Notary"],
-  ["va_notary", "Virginia Notary", "VA", "Notary"],
-  ["wa_notary", "Washington Notary", "WA", "Notary"],
-  ["wv_notary", "West Virginia Notary", "WV", "Notary"],
-  ["vt_notary", "Vermont Notary", "VT", "Notary"],
-  ["az_notary", "Arizona Notary", "AZ", "Notary"],
-  ["ar_notary", "Arkansas Notary", "AR", "Notary"],
-  ["co_notary", "Colorado Notary", "CO", "Notary"],
-  ["ct_notary", "Connecticut Notary", "CT", "Notary"],
-  ["hi_notary", "Hawaii Notary", "HI", "Notary"],
-  ["il_notary", "Illinois Notary", "IL", "Notary"],
-  ["in_notary", "Indiana Notary", "IN", "Notary"],
-  ["la_notary", "Louisiana Notary", "LA", "Notary"],
-  ["md_notary", "Maryland Notary", "MD", "Notary"],
-  ["me_notary", "Maine Notary", "ME", "Notary"],
-  ["mo_notary", "Missouri Notary", "MO", "Notary"],
-  ["mt_notary", "Montana Notary", "MT", "Notary"],
-  ["ne_notary", "Nebraska Notary", "NE", "Notary"],
-  ["nj_notary", "New Jersey Notary", "NJ", "Notary"],
-  ["nm_notary", "New Mexico Notary", "NM", "Notary"],
-  ["nv_notary", "Nevada Notary", "NV", "Notary"],
-  ["oh_notary", "Ohio Notary", "OH", "Notary"],
-  ["or_notary", "Oregon Notary", "OR", "Notary"],
-  ["pa_notary", "Pennsylvania Notary", "PA", "Notary"],
-  ["ri_notary", "Rhode Island Notary", "RI", "Notary"],
-  ["ut_notary", "Utah Notary", "UT", "Notary"],
-  ["wi_notary", "Wisconsin Notary", "WI", "Notary"],
-  ["wy_notary", "Wyoming Notary", "WY", "Notary"],
-  ["al_driver", "Alabama Driver", "AL", "Driver"],
-  ["al_cdl", "AL Commercial (CDL)", "AL", "Commercial Driver (CDL)"],
-  ["ak_driver", "Alaska Driver", "AK", "Driver"],
-  ["ak_cdl", "AK Commercial (CDL)", "AK", "Commercial Driver (CDL)"],
-  ["az_driver", "Arizona Driver", "AZ", "Driver"],
-  ["az_cdl", "AZ Commercial (CDL)", "AZ", "Commercial Driver (CDL)"],
-  ["ar_driver", "Arkansas Driver", "AR", "Driver"],
-  ["ar_cdl", "AR Commercial (CDL)", "AR", "Commercial Driver (CDL)"],
-  ["co_driver", "Colorado Driver", "CO", "Driver"],
-  ["co_cdl", "CO Commercial (CDL)", "CO", "Commercial Driver (CDL)"],
-  ["ct_driver", "Connecticut Driver", "CT", "Driver"],
-  ["ct_cdl", "CT Commercial (CDL)", "CT", "Commercial Driver (CDL)"],
-  ["de_driver", "Delaware Driver", "DE", "Driver"],
-  ["de_cdl", "DE Commercial (CDL)", "DE", "Commercial Driver (CDL)"],
-  ["hi_driver", "Hawaii Driver", "HI", "Driver"],
-  ["hi_cdl", "HI Commercial (CDL)", "HI", "Commercial Driver (CDL)"],
-  ["id_driver", "Idaho Driver", "ID", "Driver"],
-  ["id_cdl", "ID Commercial (CDL)", "ID", "Commercial Driver (CDL)"],
-  ["il_cdl", "IL Commercial (CDL)", "IL", "Commercial Driver (CDL)"],
-  ["in_driver", "Indiana Driver", "IN", "Driver"],
-  ["in_cdl", "IN Commercial (CDL)", "IN", "Commercial Driver (CDL)"],
-  ["ia_driver", "Iowa Driver", "IA", "Driver"],
-  ["ia_cdl", "IA Commercial (CDL)", "IA", "Commercial Driver (CDL)"],
-  ["ks_driver", "Kansas Driver", "KS", "Driver"],
-  ["ks_cdl", "KS Commercial (CDL)", "KS", "Commercial Driver (CDL)"],
-  ["ky_driver", "Kentucky Driver", "KY", "Driver"],
-  ["ky_cdl", "KY Commercial (CDL)", "KY", "Commercial Driver (CDL)"],
-  ["la_driver", "Louisiana Driver", "LA", "Driver"],
-  ["la_cdl", "LA Commercial (CDL)", "LA", "Commercial Driver (CDL)"],
-  ["ma_cdl", "MA Commercial (CDL)", "MA", "Commercial Driver (CDL)"],
-  ["md_cdl", "MD Commercial (CDL)", "MD", "Commercial Driver (CDL)"],
-  ["me_cdl", "ME Commercial (CDL)", "ME", "Commercial Driver (CDL)"],
-  ["mn_cdl", "MN Commercial (CDL)", "MN", "Commercial Driver (CDL)"],
-  ["mo_cdl", "MO Commercial (CDL)", "MO", "Commercial Driver (CDL)"],
-  ["ms_cdl", "MS Commercial (CDL)", "MS", "Commercial Driver (CDL)"],
-  ["mt_cdl", "MT Commercial (CDL)", "MT", "Commercial Driver (CDL)"],
-  ["nd_cdl", "ND Commercial (CDL)", "ND", "Commercial Driver (CDL)"],
-  ["ne_cdl", "NE Commercial (CDL)", "NE", "Commercial Driver (CDL)"],
-  ["nh_cdl", "NH Commercial (CDL)", "NH", "Commercial Driver (CDL)"],
-  ["nj_cdl", "NJ Commercial (CDL)", "NJ", "Commercial Driver (CDL)"],
-  ["nm_cdl", "NM Commercial (CDL)", "NM", "Commercial Driver (CDL)"],
-  ["nv_cdl", "NV Commercial (CDL)", "NV", "Commercial Driver (CDL)"],
-  ["ok_cdl", "OK Commercial (CDL)", "OK", "Commercial Driver (CDL)"],
-  ["or_cdl", "OR Commercial (CDL)", "OR", "Commercial Driver (CDL)"],
-  ["ri_cdl", "RI Commercial (CDL)", "RI", "Commercial Driver (CDL)"],
-  ["sc_cdl", "SC Commercial (CDL)", "SC", "Commercial Driver (CDL)"],
-  ["sd_cdl", "SD Commercial (CDL)", "SD", "Commercial Driver (CDL)"],
-  ["tn_cdl", "TN Commercial (CDL)", "TN", "Commercial Driver (CDL)"],
-  ["ut_cdl", "UT Commercial (CDL)", "UT", "Commercial Driver (CDL)"],
-  ["vt_cdl", "VT Commercial (CDL)", "VT", "Commercial Driver (CDL)"],
-  ["wi_cdl", "WI Commercial (CDL)", "WI", "Commercial Driver (CDL)"],
-  ["wv_cdl", "WV Commercial (CDL)", "WV", "Commercial Driver (CDL)"],
-  ["wy_cdl", "WY Commercial (CDL)", "WY", "Commercial Driver (CDL)"],
-  ["me_driver", "Maine Driver", "ME", "Driver"],
-  ["md_driver", "Maryland Driver", "MD", "Driver"],
-  ["ma_driver", "Massachusetts Driver", "MA", "Driver"],
-  ["mn_driver", "Minnesota Driver", "MN", "Driver"],
-  ["ms_driver", "Mississippi Driver", "MS", "Driver"],
-  ["mo_driver", "Missouri Driver", "MO", "Driver"],
-  ["mt_driver", "Montana Driver", "MT", "Driver"],
-  ["ne_driver", "Nebraska Driver", "NE", "Driver"],
-  ["nv_driver", "Nevada Driver", "NV", "Driver"],
-  ["nh_driver", "New Hampshire Driver", "NH", "Driver"],
-  ["nj_driver", "New Jersey Driver", "NJ", "Driver"],
-  ["nm_driver", "New Mexico Driver", "NM", "Driver"],
-  ["nd_driver", "North Dakota Driver", "ND", "Driver"],
-  ["ok_driver", "Oklahoma Driver", "OK", "Driver"],
-  ["or_driver", "Oregon Driver", "OR", "Driver"],
-  ["ri_driver", "Rhode Island Driver", "RI", "Driver"],
-  ["sc_driver", "South Carolina Driver", "SC", "Driver"],
-  ["sd_driver", "South Dakota Driver", "SD", "Driver"],
-  ["tn_driver", "Tennessee Driver", "TN", "Driver"],
-  ["ut_driver", "Utah Driver", "UT", "Driver"],
-  ["vt_driver", "Vermont Driver", "VT", "Driver"],
-  ["wv_driver", "West Virginia Driver", "WV", "Driver"],
-  ["wi_driver", "Wisconsin Driver", "WI", "Driver"],
-  ["wy_driver", "Wyoming Driver", "WY", "Driver"],
-];
+// examType/kind/state/label/active fields are the single source of truth in track_registry,
+// fetched once at boot (see loadTrackRegistry()) instead of hardcoded here -- this drifted out of
+// sync with the site's own copy once already (the Real Estate Kind-clubbing bug), which is why
+// this migration exists. EXAM_TYPES keeps the exact same [examType, label, stateCode, examKind]
+// tuple shape every existing consumer already expects, just populated from the fetch. label is
+// track_registry's short_name -- admin intentionally does NOT keep its own separate, longer label
+// text; the adjacent Kind/State columns already disambiguate same-state sibling tracks (e.g. a
+// state's Real Estate Salesperson vs Real Estate Broker row) in every table that renders this.
+var EXAM_TYPES = [];
+var TRACK_REGISTRY_FULL = {};
+
+var trackRegistryPromise = null;
+function loadTrackRegistry() {
+  if (!trackRegistryPromise) {
+    trackRegistryPromise = apiFetch('/console/track-registry').then(function (res) {
+      var tracks = (res && res.tracks) || [];
+      TRACK_REGISTRY_FULL = {};
+      tracks.forEach(function (t) { TRACK_REGISTRY_FULL[t.examType] = t; });
+      EXAM_TYPES = tracks.map(function (t) { return [t.examType, t.shortName, t.stateCode, t.examKind]; });
+    });
+  }
+  return trackRegistryPromise;
+}
 var STATE_LABELS = {
   CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', IL: 'Illinois', PA: 'Pennsylvania', OH: 'Ohio', GA: 'Georgia', NC: 'North Carolina', VA: 'Virginia', MI: 'Michigan', WA: 'Washington',
   AK: 'Alaska', AL: 'Alabama', AR: 'Arkansas', AZ: 'Arizona', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', HI: 'Hawaii', IA: 'Iowa', ID: 'Idaho', IN: 'Indiana', KS: 'Kansas', KY: 'Kentucky',
@@ -1126,17 +913,6 @@ var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 
   ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
 var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, kind: 3, state: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10, minCorrect: 11 };
 
-// Notary tracks with no real proctored/state-administered exam -- "education-only" (AL/FL/GA/TX:
-// a course, no pass/fail assessment) and "application-only" (no exam, no course at all -- the other
-// 20 states from the 2026-08 notary expansion; only some are wired into EXAM_TYPES yet, the rest are
-// listed here too so this stays correct as each gets wired). Every non-Notary track (Driver, CDL,
-// Motorcycle, Real Estate, etc.) requires a real state exam, so this only ever needs to list
-// Notary-kind exceptions.
-var NOTARY_NO_EXAM_STATES = ['AL', 'FL', 'GA', 'TX', 'AK', 'DE', 'ID', 'IA', 'KS', 'KY', 'MA', 'MI',
-  'MN', 'MS', 'NH', 'ND', 'OK', 'SC', 'SD', 'TN', 'VT', 'VA', 'WA', 'WV'];
-function trackRequiresExam(examKind, stateCode) {
-  return examKind !== 'Notary' || NOTARY_NO_EXAM_STATES.indexOf(stateCode) === -1;
-}
 var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
 
 // Sorts by moving the existing <tr> DOM nodes (appendChild on an already-attached node relocates
@@ -1250,39 +1026,37 @@ async function renderTracks() {
   appEl.innerHTML = renderTabs('tracks') + '<p>Loading…</p>';
   var results = await Promise.all([
     apiFetch('/console/pricing'),
-    apiFetch('/console/settings'),
     apiFetch('/console/questions/counts'),
-    apiFetch('/console/exam-configs'),
   ]);
-  var pricingData = results[0], settingsData = results[1], questionCountsData = results[2], examConfigsData = results[3];
+  var pricingData = results[0], questionCountsData = results[1];
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
-  var bySetting = {};
-  settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
   var questionCountByExam = {};
   questionCountsData.counts.forEach(function (c) { questionCountByExam[c.exam_type] = c.count; });
-  // Same fallback getExamConfig() itself uses server-side for any track without its own entry.
-  var DEFAULT_EXAM_CONFIG = { questionCount: 45, durationSec: 3600, passPercent: 70, minCorrect: 32 };
   function examDurationLabel(durationSec) {
     return durationSec ? Math.round(durationSec / 60) + ' min' : 'Untimed';
   }
-  // Per-track "pull from sale" override (see getInactiveTrackOverrides on the Worker) -- no row,
-  // or a row with value '1', means the track follows the public site's own coded default; a row
-  // with value '0' forces it off the hub/purchase flow regardless of code. Default to checked
-  // (on) when no override row exists yet, since every real track's coded default is active.
+  // active/isExamRequired/mechanics all come straight from TRACK_REGISTRY_FULL (fetched once at
+  // boot, see loadTrackRegistry()) -- track_registry.active is the real column now, not a
+  // separate app_settings override layered on top of a hardcoded code default.
   var pricingRows = EXAM_TYPES.map(function (t) {
     var examType = t[0], label = t[1], stateCode = t[2], examKind = t[3];
+    var registryRow = TRACK_REGISTRY_FULL[examType] || {};
     var p = byExam[examType];
     var dollars = p ? (p.price_cents / 100).toFixed(2) : '';
-    var activeOverride = bySetting['track_active:' + examType];
-    var trackActive = activeOverride !== '0';
+    var trackActive = registryRow.active !== false;
     var trackActiveOriginal = trackActive ? 'true' : 'false';
     var questionCount = questionCountByExam[examType] || 0;
-    var examConfig = examConfigsData.configs[examType] || DEFAULT_EXAM_CONFIG;
+    var examConfig = {
+      questionCount: registryRow.questionCount != null ? registryRow.questionCount : 45,
+      durationSec: registryRow.durationSec != null ? registryRow.durationSec : 3600,
+      passPercent: registryRow.passPercent != null ? registryRow.passPercent : 70,
+      minCorrect: registryRow.minCorrect != null ? registryRow.minCorrect : 32,
+    };
     var bankPct = questionCount > 0 ? (examConfig.questionCount / questionCount * 100) : null;
     var bankPctLabel = bankPct !== null ? bankPct.toFixed(1) + '%' : '—';
-    var examRequired = trackRequiresExam(examKind, stateCode);
+    var examRequired = registryRow.isExamRequired !== false;
     // Bold red is reserved for the actual risk case: a thin practice bank (>25% of the pool drawn
     // per sitting) AND a real, state-required exam -- a low-stakes/no-exam-required track with the
     // same thin-bank ratio isn't worth flagging the same way. Low-ratio tracks keep the existing
@@ -2059,7 +1833,11 @@ appEl.addEventListener('click', async function (e) {
       dirtyPriceRows.map(function (inp) {
         return apiFetch('/console/pricing', { method: 'POST', body: { examType: inp.dataset.exam, priceCents: Math.round(parseFloat(inp.value) * 100) } });
       }).concat(dirtyActiveRows.map(function (inp) {
-        return apiFetch('/console/settings', { method: 'POST', body: { key: 'track_active:' + inp.dataset.exam, value: inp.checked ? '1' : '0' } });
+        return apiFetch('/console/track-registry/active', { method: 'POST', body: { examType: inp.dataset.exam, active: inp.checked } }).then(function () {
+          // Keep the in-memory registry in sync so a re-render (e.g. re-sorting, switching tabs
+          // and back) without a full page reload still reflects the just-saved value.
+          if (TRACK_REGISTRY_FULL[inp.dataset.exam]) TRACK_REGISTRY_FULL[inp.dataset.exam].active = inp.checked;
+        });
       }))
     );
     markSettingsGroupSaved(el);
@@ -2256,5 +2034,8 @@ document.addEventListener('change', async function (e) {
 (function boot() {
   var local = loadLocalPrefs();
   applyTheme(local.theme, local.fontScale);
-  route();
+  // Must have EXAM_TYPES/TRACK_REGISTRY_FULL populated before the first route() call -- every tab
+  // (Tracks, Questions, Pricing, Codes, etc.) reads EXAM_TYPES synchronously while rendering, and
+  // it starts empty (see loadTrackRegistry()). Resolves near-instantly in the common case.
+  loadTrackRegistry().then(route);
 })();
