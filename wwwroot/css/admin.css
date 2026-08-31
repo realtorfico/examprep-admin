@@ -254,6 +254,28 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .progress-row-low { color: var(--incorrect); font-weight: 600; }
 .progress-row-good { color: var(--correct); font-weight: 600; }
 
+/* Codes tab: per-code usage drilldown modal ("Details" button on each row). Fixed overlay rather
+   than an inline expansion <tr> -- the codes table's rows are sortable by moving existing DOM
+   nodes (applyCodesSortOrder), and a sibling detail row would either need to move in lockstep on
+   every sort or risk getting orphaned from its parent row; a modal sidesteps that entirely. */
+.code-detail-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 100;
+  display: flex; align-items: flex-start; justify-content: center; padding: 3rem 1rem; overflow-y: auto;
+}
+.code-detail-modal {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  max-width: 46rem; width: 100%; padding: 1.5rem; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+.code-detail-modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+.code-detail-section { margin-top: 1.25rem; }
+.code-detail-section h4 { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.code-detail-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.75rem; }
+.code-detail-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.75rem; }
+.code-detail-stat .stat-label { display: block; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.code-detail-stat .stat-value { display: block; font-size: 1.15rem; font-weight: 700; margin-top: 0.15rem; }
+.code-detail-delta-up { color: var(--correct); font-weight: 600; }
+.code-detail-delta-down { color: var(--incorrect); font-weight: 600; }
+
 /* Questions tab: kind -> state -> topic pill hierarchy (kind/state pills reuse .settings-filter-pill
    from the pricing table above), then a track list to drill into one specific track. Capped height
    + internal scroll since a broad kind/state combo (or no filter at all) can match dozens of tracks --

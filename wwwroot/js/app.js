@@ -378,6 +378,7 @@ async function renderCodes() {
       '<td class="settings-readonly-cell">' + coverageCell + '</td>' +
       '<td class="settings-readonly-cell">' + examCountCell + '</td>' +
       '<td><button class="btn-secondary btn-sm" data-act="save-code" data-code="' + escapeHtml(c.code) + '">Save</button> ' +
+      (c.status === 'redeemed' ? '<button class="btn-secondary btn-sm" data-act="open-code-detail" data-code="' + escapeHtml(c.code) + '">Details</button> ' : '') +
       (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td></tr>';
   }).join('');
 
@@ -402,6 +403,138 @@ async function renderCodes() {
   applyCodesSortOrder();
   updateCodesRowVisibility();
 }
+
+// ---- Codes tab: per-code usage drilldown -------------------------------
+// Modal rather than an inline expansion row -- see the .code-detail-backdrop CSS comment for why.
+
+var codeDetailCache = {}; // code -> already-fetched /console/codes/detail response
+
+function formatDateTime(ts) { return ts ? new Date(ts * 1000).toLocaleString() : '—'; }
+function formatDate(ts) { return ts ? new Date(ts * 1000).toLocaleDateString() : '—'; }
+function formatDurationSec(sec) {
+  if (!sec && sec !== 0) return '—';
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m + 'm ' + s + 's';
+}
+function daysBetween(a, b) { return a && b ? Math.max(0, Math.round((b - a) / 86400)) : null; }
+
+function codeDetailStat(label, value) {
+  return '<div class="code-detail-stat"><span class="stat-label">' + label + '</span><span class="stat-value">' + value + '</span></div>';
+}
+
+function codeDetailExamAttemptsHtml(attempts) {
+  if (!attempts.length) return '<p class="muted">No mock exams submitted yet.</p>';
+  var rows = attempts.map(function (a, i) {
+    return '<tr><td>' + (i + 1) + '</td><td>' + formatDateTime(a.submittedAt) + '</td><td class="muted">' + a.mode + '</td>' +
+      '<td>' + formatDurationSec(a.durationSec) + '</td>' +
+      '<td class="' + (a.passed ? 'exam-review-correct' : 'exam-review-incorrect') + '">' + a.correct + '/' + a.total + ' (' + a.percent + '%)</td>' +
+      '<td><span class="badge ' + (a.passed ? 'redeemed' : 'revoked') + '">' + (a.passed ? 'Passed' : 'Not passed') + '</span></td></tr>';
+  }).join('');
+  var deltaHtml = '';
+  if (attempts.length > 1) {
+    var first = attempts[0], last = attempts[attempts.length - 1];
+    var delta = Math.round((last.percent - first.percent) * 10) / 10;
+    var deltaCls = delta > 0 ? 'code-detail-delta-up' : delta < 0 ? 'code-detail-delta-down' : 'muted';
+    var arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '—';
+    deltaHtml = '<p>First attempt <strong>' + first.percent + '%</strong> → latest attempt <strong>' + last.percent + '%</strong> ' +
+      '(<span class="' + deltaCls + '">' + arrow + ' ' + Math.abs(delta) + ' pts</span>)</p>';
+  }
+  return deltaHtml + '<table class="admin-user-table"><thead><tr><th>#</th><th>Submitted</th><th>Mode</th><th>Duration</th><th>Score</th><th>Result</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table>';
+}
+
+function codeDetailTopicsHtml(topics) {
+  if (!topics.length) return '<p class="muted">No questions in this track yet.</p>';
+  var rows = topics.slice().sort(function (a, b) { return b.total - a.total; }).map(function (t) {
+    var pct = topicPctOf(t), coverage = topicCoverageOf(t);
+    return '<tr class="' + accuracyRowClass(pct) + '"><td>' + t.topic + '</td><td>' + pct + '%</td>' +
+      '<td><span class="' + coverageClass(coverage) + '">' + coverage + '%</span></td><td>' + t.total + '</td></tr>';
+  }).join('');
+  return '<table class="admin-user-table"><thead><tr><th>Topic</th><th>Accuracy</th><th>Coverage</th><th>Attempts</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function codeDetailSnapshotsHtml(snapshots) {
+  if (!snapshots.length) {
+    return '<p class="muted">No daily trend data yet — a background job records one snapshot per active day, ' +
+      'so this fills in over time starting from today.</p>';
+  }
+  var rows = snapshots.map(function (s) {
+    return '<tr><td>' + s.date + '</td><td>' + (s.accuracyPct != null ? s.accuracyPct + '%' : '—') + '</td>' +
+      '<td>' + (s.coveragePct != null ? s.coveragePct + '%' : '—') + '</td><td>' + s.totalSeen + '</td></tr>';
+  }).join('');
+  return '<table class="admin-user-table"><thead><tr><th>Date</th><th>Accuracy</th><th>Coverage</th><th>Questions seen</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function codeDetailResourcesHtml(resources) {
+  if (!resources.length) return '<p class="muted">No study resources opened yet.</p>';
+  var rows = resources.map(function (r) {
+    var extent = (r.resource_type === 'audio' || r.resource_type === 'video') ? r.percent + '%' : (r.percent >= 100 ? 'Viewed' : '—');
+    return '<tr><td>' + r.resource_file + '</td><td class="muted">' + r.resource_type + '</td><td>' + extent + '</td>' +
+      '<td>' + r.times_opened + '</td><td class="muted">' + formatDate(r.last_opened_at) + '</td></tr>';
+  }).join('');
+  return '<table class="admin-user-table resource-consumption-table"><thead><tr><th>Resource</th><th>Type</th><th>Progress</th><th>Opens</th><th>Last opened</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function codeDetailModalHtml(code, detail) {
+  if (!detail.user) {
+    return '<div class="code-detail-modal-header"><h3>' + escapeHtml(code) + '</h3><button class="btn-secondary btn-sm" data-act="close-code-detail">Close</button></div>' +
+      '<p class="muted">This code hasn\'t been redeemed to an account yet, so there\'s no usage to show.</p>';
+  }
+  var activeSpanDays = daysBetween(detail.code.redeemed_at, detail.user.last_seen_at);
+  var firstActivitySpanDays = daysBetween(detail.activity.firstActivityAt, detail.activity.lastActivityAt);
+  return '<div class="code-detail-modal-header"><h3>' + escapeHtml(code) + ' <span class="muted">— ' + trackLabelFor(detail.code.exam_type) + '</span></h3>' +
+    '<button class="btn-secondary btn-sm" data-act="close-code-detail">Close</button></div>' +
+
+    '<div class="code-detail-section"><h4>Timeline</h4><div class="code-detail-stat-grid">' +
+    codeDetailStat('Redeemed', formatDate(detail.code.redeemed_at)) +
+    codeDetailStat('Last active', formatDate(detail.user.last_seen_at)) +
+    codeDetailStat('Active span', activeSpanDays != null ? activeSpanDays + ' days' : '—') +
+    codeDetailStat('First quiz activity', formatDate(detail.activity.firstActivityAt)) +
+    codeDetailStat('Last quiz activity', formatDate(detail.activity.lastActivityAt)) +
+    codeDetailStat('Quiz activity span', firstActivitySpanDays != null ? firstActivitySpanDays + ' days' : '—') +
+    '</div></div>' +
+
+    '<div class="code-detail-section"><h4>Current standing</h4><div class="code-detail-stat-grid">' +
+    codeDetailStat('Accuracy', detail.current.accuracyPct != null ? detail.current.accuracyPct + '%' : '—') +
+    codeDetailStat('Coverage', detail.current.coveragePct != null ? detail.current.coveragePct + '%' : '—') +
+    codeDetailStat('Questions seen', detail.current.seen + ' / ' + detail.current.topicTotal) +
+    codeDetailStat('Total attempts', detail.current.total) +
+    '</div></div>' +
+
+    '<div class="code-detail-section"><h4>Mock exam attempts (chronological)</h4>' + codeDetailExamAttemptsHtml(detail.examAttempts) + '</div>' +
+    '<div class="code-detail-section"><h4>Coverage &amp; accuracy by topic</h4>' + codeDetailTopicsHtml(detail.current.topics) + '</div>' +
+    '<div class="code-detail-section"><h4>Daily trend</h4>' + codeDetailSnapshotsHtml(detail.snapshots) + '</div>' +
+    '<div class="code-detail-section"><h4>Study resources</h4>' + codeDetailResourcesHtml(detail.resources) + '</div>';
+}
+
+async function openCodeDetail(code) {
+  var backdrop = document.createElement('div');
+  backdrop.className = 'code-detail-backdrop';
+  backdrop.id = 'code-detail-backdrop';
+  backdrop.innerHTML = '<div class="code-detail-modal"><p class="muted">Loading…</p></div>';
+  backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeCodeDetail(); });
+  document.body.appendChild(backdrop);
+
+  try {
+    var detail = codeDetailCache[code];
+    if (!detail) {
+      detail = await apiFetch('/console/codes/detail?code=' + encodeURIComponent(code));
+      codeDetailCache[code] = detail;
+    }
+    var modalEl = backdrop.querySelector('.code-detail-modal');
+    if (modalEl) modalEl.innerHTML = codeDetailModalHtml(code, detail);
+  } catch (err) {
+    var el = backdrop.querySelector('.code-detail-modal');
+    if (el) el.innerHTML = '<p class="muted">Could not load usage details for this code.</p>';
+  }
+}
+
+function closeCodeDetail() {
+  var backdrop = document.getElementById('code-detail-backdrop');
+  if (backdrop) backdrop.remove();
+}
+
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeCodeDetail(); });
 
 // ---- Questions --------------------------------------------------------
 
@@ -1949,6 +2082,10 @@ appEl.addEventListener('click', async function (e) {
   if (act === 'revoke-code') {
     await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: el.getAttribute('data-code') } });
     renderCodes();
+  } else if (act === 'open-code-detail') {
+    openCodeDetail(el.getAttribute('data-code'));
+  } else if (act === 'close-code-detail') {
+    closeCodeDetail();
   } else if (act === 'save-code') {
     var codeRow = el.closest('tr');
     var noteInput = codeRow.querySelector('.code-note-input');
