@@ -1457,6 +1457,9 @@ async function renderStalledBuyers() {
 
 var visitorsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
+var visitorsFilters = { preset: 'all', country: '', region: '', minDurationMin: '', maxDurationMin: '' };
+var visitorsFacets = { countries: [], regions: [] };
+var visitorsFacetsLoaded = false;
 var VISITORS_NUMERIC_KEYS = new Set(['latitude', 'longitude', 'page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot']);
 var VISITORS_COLUMNS = [
   ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
@@ -1467,6 +1470,83 @@ var VISITORS_COLUMNS = [
   ['referrer', 'Referrer'], ['utm_source', 'UTM Source'], ['utm_medium', 'UTM Medium'], ['utm_campaign', 'UTM Campaign'],
   ['landing_path', 'Landing Page'], ['page_count', 'Pages Viewed'],
 ];
+
+var VISITORS_DATE_PRESETS = [['all', 'All Time'], ['7d', 'Last 7 Days'], ['30d', 'Last 30 Days'], ['custom', 'Custom Range']];
+
+function visitorsFilterBarHtml() {
+  var presetPills = VISITORS_DATE_PRESETS.map(function (p) {
+    var active = visitorsFilters.preset === p[0];
+    return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="visitors-date-preset" data-preset="' + p[0] + '">' + p[1] + '</button>';
+  }).join('');
+  var customRangeHtml = visitorsFilters.preset === 'custom'
+    ? '<input type="date" id="visitors-from-input" value="' + (visitorsFilters.fromDate || '') + '"> to ' +
+      '<input type="date" id="visitors-to-input" value="' + (visitorsFilters.toDate || '') + '">'
+    : '';
+  var countryOptions = ['<option value="">All Countries</option>'].concat(visitorsFacets.countries.map(function (c) {
+    return '<option value="' + escapeHtml(c) + '"' + (visitorsFilters.country === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+  })).join('');
+  var regionOptions = ['<option value="">All Regions</option>'].concat(visitorsFacets.regions.map(function (r) {
+    return '<option value="' + escapeHtml(r) + '"' + (visitorsFilters.region === r ? ' selected' : '') + '>' + escapeHtml(r) + '</option>';
+  })).join('');
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by date range">' + presetPills + '</div>' +
+    '<div class="questions-toolbar">' +
+    customRangeHtml +
+    '<select id="visitors-country-select">' + countryOptions + '</select>' +
+    '<select id="visitors-region-select">' + regionOptions + '</select>' +
+    '<label class="muted">Duration (min):</label>' +
+    '<input type="number" id="visitors-min-duration-input" placeholder="Min" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.minDurationMin) + '">' +
+    '<span class="muted">–</span>' +
+    '<input type="number" id="visitors-max-duration-input" placeholder="Max" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.maxDurationMin) + '">' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="apply-visitors-filters">Apply</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="reset-visitors-filters">Reset</button>' +
+    '</div>';
+}
+
+function visitorsDateRangeForPreset(preset) {
+  var nowSec = Math.floor(Date.now() / 1000);
+  if (preset === '7d') return { from: nowSec - 7 * 86400, to: nowSec };
+  if (preset === '30d') return { from: nowSec - 30 * 86400, to: nowSec };
+  return { from: null, to: null };
+}
+
+// Reads the filter bar's live input values (not just visitorsFilters state, since typed-but-not-yet-
+// applied duration/date values need to be picked up at Apply-click time) and builds the query string.
+function visitorsQueryString() {
+  var params = [];
+  if (visitorsFilters.preset === 'custom') {
+    var fromInput = document.getElementById('visitors-from-input');
+    var toInput = document.getElementById('visitors-to-input');
+    visitorsFilters.fromDate = fromInput ? fromInput.value : '';
+    visitorsFilters.toDate = toInput ? toInput.value : '';
+    if (visitorsFilters.fromDate) params.push('from=' + Math.floor(new Date(visitorsFilters.fromDate + 'T00:00:00').getTime() / 1000));
+    if (visitorsFilters.toDate) params.push('to=' + Math.floor(new Date(visitorsFilters.toDate + 'T23:59:59').getTime() / 1000));
+  } else {
+    var range = visitorsDateRangeForPreset(visitorsFilters.preset);
+    if (range.from) params.push('from=' + range.from);
+    if (range.to) params.push('to=' + range.to);
+  }
+  var countrySelect = document.getElementById('visitors-country-select');
+  var regionSelect = document.getElementById('visitors-region-select');
+  var minInput = document.getElementById('visitors-min-duration-input');
+  var maxInput = document.getElementById('visitors-max-duration-input');
+  visitorsFilters.country = countrySelect ? countrySelect.value : '';
+  visitorsFilters.region = regionSelect ? regionSelect.value : '';
+  visitorsFilters.minDurationMin = minInput ? minInput.value : '';
+  visitorsFilters.maxDurationMin = maxInput ? maxInput.value : '';
+  if (visitorsFilters.country) params.push('country=' + encodeURIComponent(visitorsFilters.country));
+  if (visitorsFilters.region) params.push('region=' + encodeURIComponent(visitorsFilters.region));
+  if (visitorsFilters.minDurationMin) params.push('minDurationSec=' + (parseInt(visitorsFilters.minDurationMin, 10) * 60));
+  if (visitorsFilters.maxDurationMin) params.push('maxDurationSec=' + (parseInt(visitorsFilters.maxDurationMin, 10) * 60));
+  return params.length ? ('?' + params.join('&')) : '';
+}
+
+async function loadVisitors() {
+  var container = document.getElementById('visitors-table-container');
+  if (container) container.innerHTML = '<p class="muted">Loading…</p>';
+  var data = await apiFetch('/console/visitors' + visitorsQueryString());
+  visitorsCache = data.items || [];
+  drawVisitorsTable();
+}
 
 function formatDuration(sec) {
   if (sec == null) return '—';
@@ -1510,10 +1590,14 @@ async function renderVisitors() {
     '<p class="muted page-intro-text">Every recorded browser session on the public site, newest activity first. Click any column ' +
     'header to sort. Hover a truncated cell (IDs, Referrer, Pages Viewed) for the full value. Add IPs to the exclusion list in ' +
     'Settings to keep your own traffic out of this table.</p>' +
+    '<div id="visitors-filter-wrap">' + visitorsFilterBarHtml() + '</div>' +
     '<div id="visitors-table-container"><p class="muted">Loading…</p></div>';
-  var data = await apiFetch('/console/visitors');
-  visitorsCache = data.items || [];
-  drawVisitorsTable();
+  if (!visitorsFacetsLoaded) {
+    try { visitorsFacets = await apiFetch('/console/visitors/facets'); } catch (e) { /* best-effort -- dropdowns just stay empty */ }
+    visitorsFacetsLoaded = true;
+    document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
+  }
+  await loadVisitors();
 }
 
 // ---- Alerts (admin_alert_rules) ---------------------------------------
@@ -1917,6 +2001,18 @@ appEl.addEventListener('click', async function (e) {
     if (visitorsSort.key === visitorsSortKey) visitorsSort.dir *= -1;
     else { visitorsSort.key = visitorsSortKey; visitorsSort.dir = 1; }
     drawVisitorsTable();
+  } else if (act === 'visitors-date-preset') {
+    var newPreset = el.getAttribute('data-preset');
+    if (newPreset === visitorsFilters.preset) return;
+    visitorsFilters.preset = newPreset;
+    document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
+    if (visitorsFilters.preset !== 'custom') await loadVisitors(); // custom needs the date inputs filled in first
+  } else if (act === 'apply-visitors-filters') {
+    await loadVisitors();
+  } else if (act === 'reset-visitors-filters') {
+    visitorsFilters = { preset: 'all', country: '', region: '', minDurationMin: '', maxDurationMin: '' };
+    document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
+    await loadVisitors();
   } else if (act === 'add-alert-rule') {
     var newTriggerSelect = document.getElementById('new-alert-trigger-select');
     var newEmailInput = document.getElementById('new-alert-email-input');
