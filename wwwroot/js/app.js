@@ -254,8 +254,8 @@ function isoDateFromUnix(ts) {
 }
 
 var CODES_COLUMNS = [['code', 'Code'], ['exam', 'Exam'], ['status', 'Status'], ['note', 'Note'], ['expires', 'Expires'],
-  ['redeemed', 'Redeemed'], ['accuracy', 'Accuracy'], ['coverage', 'Coverage'], ['examCount', 'Mock Exams']];
-var CODES_CELL_INDEX = { code: 0, exam: 1, status: 2, note: 3, expires: 4, redeemed: 5, accuracy: 6, coverage: 7, examCount: 8 };
+  ['redeemed', 'Redeemed'], ['lastUsed', 'Last Used'], ['accuracy', 'Accuracy'], ['coverage', 'Coverage'], ['examCount', 'Mock Exams']];
+var CODES_CELL_INDEX = { code: 0, exam: 1, status: 2, note: 3, expires: 4, redeemed: 5, lastUsed: 6, accuracy: 7, coverage: 8, examCount: 9 };
 
 var codesSort = { key: '', dir: 1 }; // key: '' = unsorted (original /console/codes order)
 
@@ -274,10 +274,10 @@ function applyCodesSortOrder() {
     } else if (key === 'expires') {
       // 'YYYY-MM-DD' or '' (no expiry) -- lexicographic works for ISO dates; empty sorts first ascending.
       av = a.querySelector('.code-expires-input').value; bv = b.querySelector('.code-expires-input').value;
-    } else if (key === 'redeemed') {
+    } else if (key === 'redeemed' || key === 'lastUsed') {
       // Cell shows a locale date string or "—" -- sort by the raw unix timestamp stashed as data-ts instead.
-      av = Number(a.children[CODES_CELL_INDEX.redeemed].dataset.ts || 0);
-      bv = Number(b.children[CODES_CELL_INDEX.redeemed].dataset.ts || 0);
+      av = Number(a.children[CODES_CELL_INDEX[key]].dataset.ts || 0);
+      bv = Number(b.children[CODES_CELL_INDEX[key]].dataset.ts || 0);
     } else if (key === 'accuracy' || key === 'coverage' || key === 'examCount') {
       // "83%" / "0" / "—" -- parseFloat stops at the first non-numeric char; "—" (NaN) sorts lowest.
       av = parseFloat(a.children[CODES_CELL_INDEX[key]].textContent);
@@ -293,6 +293,50 @@ function applyCodesSortOrder() {
     return 0;
   });
   rows.forEach(function (row) { tbody.appendChild(row); });
+}
+
+var codesStatusFilter = ''; // '' = all; else 'unused' | 'redeemed' | 'revoked'
+var codesExamFilter = ''; // '' = all; else an exam_type
+var codesFilterQuery = ''; // free text over code + note; resets on every tab open, same as Pricing's search box
+
+function renderCodesStatusFilterPills(codes) {
+  var order = ['unused', 'redeemed', 'revoked'];
+  var counts = {};
+  codes.forEach(function (c) { counts[c.status] = (counts[c.status] || 0) + 1; });
+  var options = [['', 'All (' + codes.length + ')']].concat(order.filter(function (s) { return counts[s]; }).map(function (s) {
+    return [s, s.charAt(0).toUpperCase() + s.slice(1) + ' (' + counts[s] + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by status">' +
+    options.map(function (o) {
+      var active = codesStatusFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-codes-status" data-status="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+function renderCodesExamFilterHtml(codes) {
+  var counts = {};
+  codes.forEach(function (c) { counts[c.exam_type] = (counts[c.exam_type] || 0) + 1; });
+  // Only exam types with at least one code -- a flat list of every track (300+) would swamp the
+  // handful actually in use, same reasoning as the 0-count-hiding rule on the Tracks/Questions pills.
+  var examTypes = Object.keys(counts).sort(function (a, b) { return a.localeCompare(b); });
+  var options = '<option value="">All Exams (' + codes.length + ')</option>' + examTypes.map(function (et) {
+    return '<option value="' + escapeHtml(et) + '"' + (codesExamFilter === et ? ' selected' : '') + '>' + escapeHtml(trackLabelFor(et)) + ' (' + counts[et] + ')</option>';
+  }).join('');
+  return '<label class="muted">Exam</label><select id="codes-exam-select">' + options + '</select>';
+}
+
+function updateCodesRowVisibility() {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#codes-rows-body tr[data-code]'));
+  var q = codesFilterQuery.trim().toLowerCase();
+  rows.forEach(function (row) {
+    var matchesStatus = !codesStatusFilter || row.dataset.status === codesStatusFilter;
+    var matchesExam = !codesExamFilter || row.dataset.exam === codesExamFilter;
+    var matchesText = !q ||
+      row.children[CODES_CELL_INDEX.code].textContent.toLowerCase().indexOf(q) !== -1 ||
+      row.querySelector('.code-note-input').value.toLowerCase().indexOf(q) !== -1;
+    row.style.display = (matchesStatus && matchesExam && matchesText) ? '' : 'none';
+  });
 }
 
 async function renderCodes() {
@@ -324,11 +368,12 @@ async function renderCodes() {
     var accuracyCell = progress && progress.accuracyPct != null ? progress.accuracyPct + '%' : '—';
     var coverageCell = progress && progress.coveragePct != null ? progress.coveragePct + '%' : '—';
     var examCountCell = examCountByCode[c.code] || 0;
-    return '<tr data-code="' + escapeHtml(c.code) + '"><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
+    return '<tr data-code="' + escapeHtml(c.code) + '" data-status="' + escapeHtml(c.status) + '" data-exam="' + escapeHtml(c.exam_type) + '"><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
       '<td><input type="text" class="code-note-input" data-original="' + escapeHtml(c.note || '') + '" value="' + escapeHtml(c.note || '') + '"></td>' +
       '<td><input type="date" class="code-expires-input" data-original="' + expiresIso + '" value="' + expiresIso + '"></td>' +
       '<td data-ts="' + (c.redeemed_at || 0) + '">' + (c.redeemed_at ? new Date(c.redeemed_at * 1000).toLocaleDateString() : '—') + '</td>' +
+      '<td class="settings-readonly-cell" data-ts="' + (c.last_used_at || 0) + '">' + (c.last_used_at ? new Date(c.last_used_at * 1000).toLocaleDateString() : '—') + '</td>' +
       '<td class="settings-readonly-cell">' + accuracyCell + '</td>' +
       '<td class="settings-readonly-cell">' + coverageCell + '</td>' +
       '<td class="settings-readonly-cell">' + examCountCell + '</td>' +
@@ -346,9 +391,14 @@ async function renderCodes() {
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
     '</form></div>' +
+    '<div class="settings-filter-pills-row" id="codes-status-filter-wrap">' + renderCodesStatusFilterPills(data.codes) + '</div>' +
+    '<div class="settings-filter-pills-row" id="codes-exam-filter-wrap">' + renderCodesExamFilterHtml(data.codes) + '</div>' +
+    '<input type="search" class="settings-filter-input" id="codes-search-input" placeholder="Search code or note…">' +
     '<table><thead id="codes-table-head">' + sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</tr>', '<th></th></tr>') + '</thead>' +
     '<tbody id="codes-rows-body">' + rows + '</tbody></table>';
+  codesFilterQuery = '';
   applyCodesSortOrder();
+  updateCodesRowVisibility();
 }
 
 // ---- Questions --------------------------------------------------------
@@ -2034,6 +2084,13 @@ appEl.addEventListener('click', async function (e) {
     else { codesSort.key = codesSortKey; codesSort.dir = 1; }
     applyCodesSortOrder();
     document.getElementById('codes-table-head').innerHTML = sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</tr>', '<th></th></tr>');
+    updateCodesRowVisibility(); // re-render replaced the header only, but filter state is on rows -- cheap to just reapply
+  } else if (act === 'filter-codes-status') {
+    codesStatusFilter = el.getAttribute('data-status');
+    document.getElementById('codes-status-filter-wrap').innerHTML = renderCodesStatusFilterPills(
+      Array.prototype.slice.call(document.querySelectorAll('#codes-rows-body tr[data-code]')).map(function (row) { return { status: row.dataset.status }; })
+    );
+    updateCodesRowVisibility();
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {
       return inp.value !== inp.dataset.original;
@@ -2254,6 +2311,7 @@ appEl.addEventListener('input', function (e) {
     questionsSearchDebounceTimer = setTimeout(function () { questionsPage = 0; refreshQuestionsPage(); }, 300);
     return;
   }
+  if (e.target.id === 'codes-search-input') { codesFilterQuery = e.target.value; updateCodesRowVisibility(); return; }
   if (e.target.classList.contains('settings-filter-input')) { filterPricingRows(e.target.value); return; }
   if (e.target.hasAttribute('data-original')) updateSettingsDirtyState(e.target);
 });
@@ -2263,6 +2321,10 @@ appEl.addEventListener('change', function (e) {
     questionsSourceFilter = e.target.value;
     questionsPage = 0;
     refreshQuestionsPage();
+  }
+  if (e.target.id === 'codes-exam-select') {
+    codesExamFilter = e.target.value;
+    updateCodesRowVisibility();
   }
 });
 
