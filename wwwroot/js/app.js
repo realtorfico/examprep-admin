@@ -538,7 +538,7 @@ function closeCodeDetail() {
   if (backdrop) backdrop.remove();
 }
 
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeCodeDetail(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeCodeDetail(); closeVisitorDetail(); } });
 
 // ---- Questions --------------------------------------------------------
 
@@ -1759,14 +1759,16 @@ var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', reg
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
-var VISITORS_NUMERIC_KEYS = new Set(['latitude', 'longitude', 'page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot']);
+var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot']);
+// Visitor ID, Session ID, Latitude, Longitude, and the 3 UTM columns moved into the per-row
+// Details modal (2026-08-31) -- same "less-critical columns behind a Details button" pattern as
+// the Codes table -- to keep this already-wide table's default view scannable. Still present in
+// visitorDetailModalHtml() below, not dropped.
 var VISITORS_COLUMNS = [
   ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
-  ['visitor_id', 'Visitor ID'], ['session_id', 'Session ID'],
   ['ip_address', 'IP Address'], ['country', 'Country'], ['region', 'Region'], ['city', 'City'], ['timezone', 'Timezone'],
-  ['latitude', 'Latitude'], ['longitude', 'Longitude'],
   ['device_type', 'Device'], ['browser', 'Browser'], ['os', 'OS'], ['is_bot', 'Bot?'],
-  ['referrer', 'Referrer'], ['utm_source', 'UTM Source'], ['utm_medium', 'UTM Medium'], ['utm_campaign', 'UTM Campaign'],
+  ['referrer', 'Referrer'],
   ['landing_path', 'Landing Page'], ['page_count', 'Pages Viewed'],
 ];
 
@@ -1864,7 +1866,6 @@ function formatDuration(sec) {
   var m = Math.floor(sec / 60), s = sec % 60;
   return m > 0 ? (m + 'm ' + s + 's') : (s + 's');
 }
-function shortId(id) { return id ? id.slice(0, 8) : '—'; }
 function fmtDate(ts) { return ts ? new Date(ts * 1000).toLocaleString() : '—'; }
 
 function drawVisitorsTable() {
@@ -1878,29 +1879,98 @@ function drawVisitorsTable() {
     return '<tr' + (v.is_bot ? ' class="visitor-row-bot"' : '') + '>' +
       '<td>' + fmtDate(v.last_seen_at) + '</td><td>' + fmtDate(v.first_seen_at) + '</td>' +
       '<td>' + formatDuration(v.duration_sec) + '</td>' +
-      '<td title="' + escapeHtml(v.visitor_id || '') + '">' + shortId(v.visitor_id) + '</td>' +
-      '<td title="' + escapeHtml(v.session_id || '') + '">' + shortId(v.session_id) + '</td>' +
       '<td>' + escapeHtml(v.ip_address || '—') + '</td>' +
       '<td>' + escapeHtml(v.country || '—') + '</td><td>' + escapeHtml(v.region || '—') + '</td>' +
       '<td>' + escapeHtml(v.city || '—') + '</td><td>' + escapeHtml(v.timezone || '—') + '</td>' +
-      '<td>' + (v.latitude != null ? v.latitude : '—') + '</td><td>' + (v.longitude != null ? v.longitude : '—') + '</td>' +
       '<td>' + escapeHtml(v.device_type || '—') + '</td><td>' + escapeHtml(v.browser || '—') + '</td>' +
       '<td>' + escapeHtml(v.os || '—') + '</td><td>' + (v.is_bot ? 'Yes' : 'No') + '</td>' +
       '<td class="visitor-referrer-cell" title="' + escapeHtml(v.referrer || '') + '">' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</td>' +
-      '<td>' + escapeHtml(v.utm_source || '—') + '</td><td>' + escapeHtml(v.utm_medium || '—') + '</td><td>' + escapeHtml(v.utm_campaign || '—') + '</td>' +
       '<td>' + escapeHtml(v.landing_path || '—') + '</td>' +
       '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
+      '<td><button class="btn-secondary btn-sm" data-act="open-visitor-detail" data-session-id="' + escapeHtml(v.session_id || '') + '">Details</button></td>' +
       '</tr>';
   }).join('');
   container.innerHTML = '<div class="settings-table-scroll"><table><thead id="visitors-table-head">' +
-    sortableHeaderRow(VISITORS_COLUMNS, visitorsSort, 'sort-visitors') + '</thead><tbody>' + body + '</tbody></table></div>';
+    sortableHeaderRow(VISITORS_COLUMNS, visitorsSort, 'sort-visitors').replace('</tr>', '<th></th></tr>') + '</thead><tbody>' + body + '</tbody></table></div>';
+}
+
+// Visitor detail modal -- same overlay pattern as the Codes table's per-code drilldown
+// (openCodeDetail/closeCodeDetail, .code-detail-* CSS), reused here rather than duplicated since
+// it's purely structural/presentational, not code-specific. No fetch needed: every field shown
+// here is already in visitorsCache from the initial /console/visitors load.
+function visitorDetailModalHtml(v) {
+  var pages;
+  try { pages = JSON.parse(v.pages_json || '[]'); } catch (e) { pages = []; }
+  var mapLink = (v.latitude != null && v.longitude != null)
+    ? '<a href="https://www.google.com/maps?q=' + v.latitude + ',' + v.longitude + '" target="_blank" rel="noopener">' +
+      v.latitude + ', ' + v.longitude + ' ↗</a>'
+    : '—';
+  return '<div class="code-detail-modal-header"><h3>Visitor Detail</h3>' +
+    '<button class="btn-secondary btn-sm" data-act="close-visitor-detail">Close</button></div>' +
+
+    '<div class="code-detail-section"><h4>Identity</h4><div class="code-detail-stat-grid">' +
+    codeDetailStat('Visitor ID', escapeHtml(v.visitor_id || '—')) +
+    codeDetailStat('Session ID', escapeHtml(v.session_id || '—')) +
+    codeDetailStat('IP Address', escapeHtml(v.ip_address || '—')) +
+    codeDetailStat('Bot?', v.is_bot ? 'Yes' : 'No') +
+    '</div></div>' +
+
+    '<div class="code-detail-section"><h4>Location</h4><div class="code-detail-stat-grid">' +
+    codeDetailStat('Country', escapeHtml(v.country || '—')) +
+    codeDetailStat('Region', escapeHtml(v.region || '—')) +
+    codeDetailStat('City', escapeHtml(v.city || '—')) +
+    codeDetailStat('Timezone', escapeHtml(v.timezone || '—')) +
+    codeDetailStat('Coordinates', mapLink) +
+    '</div></div>' +
+
+    '<div class="code-detail-section"><h4>Campaign & Acquisition</h4><div class="code-detail-stat-grid">' +
+    codeDetailStat('UTM Source', escapeHtml(v.utm_source || '—')) +
+    codeDetailStat('UTM Medium', escapeHtml(v.utm_medium || '—')) +
+    codeDetailStat('UTM Campaign', escapeHtml(v.utm_campaign || '—')) +
+    '</div>' +
+    '<p class="muted" style="margin-top:0.6rem"><strong>Referrer:</strong> ' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</p>' +
+    '<p class="muted"><strong>Landing page:</strong> ' + escapeHtml(v.landing_path || '—') + '</p>' +
+    '</div>' +
+
+    '<div class="code-detail-section"><h4>Session</h4><div class="code-detail-stat-grid">' +
+    codeDetailStat('First seen', fmtDate(v.first_seen_at)) +
+    codeDetailStat('Last seen', fmtDate(v.last_seen_at)) +
+    codeDetailStat('Time on site', formatDuration(v.duration_sec)) +
+    codeDetailStat('Pages viewed', v.page_count) +
+    '</div></div>' +
+
+    '<div class="code-detail-section"><h4>Page journey</h4>' +
+    (pages.length
+      ? '<ol style="margin:0;padding-left:1.25rem;font-size:0.85rem;line-height:1.6">' +
+        pages.map(function (p) { return '<li>' + escapeHtml(p) + '</li>'; }).join('') + '</ol>'
+      : '<p class="muted">No page-view history recorded for this session.</p>') +
+    '</div>';
+}
+
+function openVisitorDetail(sessionId) {
+  var v = visitorsCache.filter(function (x) { return x.session_id === sessionId; })[0];
+  if (!v) return;
+  var backdrop = document.createElement('div');
+  backdrop.className = 'code-detail-backdrop';
+  backdrop.id = 'visitor-detail-backdrop';
+  backdrop.innerHTML = '<div class="code-detail-modal">' + visitorDetailModalHtml(v) + '</div>';
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop || e.target.closest('[data-act="close-visitor-detail"]')) closeVisitorDetail();
+  });
+  document.body.appendChild(backdrop);
+}
+
+function closeVisitorDetail() {
+  var backdrop = document.getElementById('visitor-detail-backdrop');
+  if (backdrop) backdrop.remove();
 }
 
 async function renderVisitors() {
   appEl.innerHTML = renderTabs('visitors') +
     '<p class="muted page-intro-text">Every recorded browser session on the public site, newest activity first. Click any column ' +
-    'header to sort. Hover a truncated cell (IDs, Referrer, Pages Viewed) for the full value. Add IPs to the exclusion list in ' +
-    'Settings to keep your own traffic out of this table.</p>' +
+    'header to sort. Hover a truncated cell (Referrer, Pages Viewed) for the full value, or click Details for the full picture ' +
+    '(visitor/session IDs, coordinates, UTM source/medium/campaign, and the full page-view journey). Add IPs to the exclusion ' +
+    'list in Settings to keep your own traffic out of this table.</p>' +
     '<div id="visitors-filter-wrap">' + visitorsFilterBarHtml() + '</div>' +
     '<div id="visitors-table-container"><p class="muted">Loading…</p></div>';
   if (!visitorsFacetsLoaded) {
@@ -2088,6 +2158,8 @@ appEl.addEventListener('click', async function (e) {
     renderCodes();
   } else if (act === 'open-code-detail') {
     openCodeDetail(el.getAttribute('data-code'));
+  } else if (act === 'open-visitor-detail') {
+    openVisitorDetail(el.getAttribute('data-session-id'));
   } else if (act === 'save-code') {
     var codeRow = el.closest('tr');
     var noteInput = codeRow.querySelector('.code-note-input');
