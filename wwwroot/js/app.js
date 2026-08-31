@@ -391,9 +391,11 @@ async function renderCodes() {
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
     '</form></div>' +
-    '<div class="settings-filter-pills-row" id="codes-status-filter-wrap">' + renderCodesStatusFilterPills(data.codes) + '</div>' +
-    '<div class="settings-filter-pills-row" id="codes-exam-filter-wrap">' + renderCodesExamFilterHtml(data.codes) + '</div>' +
-    '<input type="search" class="settings-filter-input" id="codes-search-input" placeholder="Search code or note…">' +
+    '<div class="questions-toolbar">' +
+    '<span id="codes-status-filter-wrap">' + renderCodesStatusFilterPills(data.codes) + '</span>' +
+    '<span id="codes-exam-filter-wrap">' + renderCodesExamFilterHtml(data.codes) + '</span>' +
+    '<input type="search" class="questions-search-input" id="codes-search-input" placeholder="Search code or note…">' +
+    '</div>' +
     '<table><thead id="codes-table-head">' + sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</tr>', '<th></th></tr>') + '</thead>' +
     '<tbody id="codes-rows-body">' + rows + '</tbody></table>';
   codesFilterQuery = '';
