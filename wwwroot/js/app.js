@@ -316,6 +316,9 @@ var questionsKindFilter = ''; // '' = All kinds
 var questionsStateFilter = ''; // '' = All states
 var questionsTrackQuery = ''; // free-text filter over the track list itself (track name, not question content)
 var questionsSearchQuery = ''; // free-text search over question content, resolved server-side
+var questionsSourceFilter = ''; // '' = All sources
+var questionsSourceOp = 'eq'; // 'eq' = is, 'ne' = is not
+var questionsSourcesCache = null; // [{source, count}] for the current resolved scope
 var QUESTIONS_PAGE_SIZE = 50;
 var questionsPage = 0; // 0-indexed
 var questionsPageRows = [];
@@ -479,21 +482,49 @@ async function loadQuestionsPage() {
     '&limit=' + QUESTIONS_PAGE_SIZE + '&offset=' + (questionsPage * QUESTIONS_PAGE_SIZE);
   if (currentQuestionsTopic && resolvedTypes.length === 1) params += '&topic=' + encodeURIComponent(currentQuestionsTopic);
   if (questionsSearchQuery.trim()) params += '&q=' + encodeURIComponent(questionsSearchQuery.trim());
+  if (questionsSourceFilter) {
+    params += '&source=' + encodeURIComponent(questionsSourceFilter);
+    if (questionsSourceOp === 'ne') params += '&sourceOp=ne';
+  }
   var data = await apiFetch('/console/questions?' + params);
   questionsPageRows = data.questions;
   questionsTotal = data.total;
 }
 
+async function loadQuestionsSources(resolvedTypes) {
+  // Same unbounded-scope guard as the results table itself (questionsScopeTooUnbounded) -- an
+  // all-kinds/all-states scope would otherwise GROUP BY source across every track in the bank.
+  if (!resolvedTypes.length || questionsScopeTooUnbounded()) { questionsSourcesCache = null; return; }
+  var data = await apiFetch('/console/questions/sources?examType=' + encodeURIComponent(resolvedTypes.join(',')));
+  questionsSourcesCache = data.sources;
+}
+
+function renderQuestionsSourceFilterHtml() {
+  if (!questionsSourcesCache || !questionsSourcesCache.length) return '';
+  var opToggle = '<button type="button" class="btn-secondary btn-sm" data-act="toggle-questions-source-op" title="Toggle is / is not">' +
+    (questionsSourceOp === 'ne' ? 'is not' : 'is') + '</button>';
+  var options = ['<option value="">All Sources</option>'].concat(questionsSourcesCache.map(function (s) {
+    return '<option value="' + escapeHtml(s.source || '') + '"' + (questionsSourceFilter === s.source ? ' selected' : '') + '>' +
+      escapeHtml(s.source || '(none)') + ' (' + s.count + ')</option>';
+  })).join('');
+  return '<label class="muted">Source</label>' + opToggle + '<select id="questions-source-select">' + options + '</select>';
+}
+
 // Full reset for whenever the resolved track *set* changes (a track pick, or a kind/state pill) --
-// topic/search/page no longer mean what they meant for the old scope, so they're cleared too
+// topic/search/source/page no longer mean what they meant for the old scope, so they're cleared too
 // (including the visible search box, updated directly rather than via a redraw -- see drawQuestionsResults()).
 async function refreshQuestionsScope() {
   currentQuestionsTopic = null;
   questionsSearchQuery = '';
+  questionsSourceFilter = '';
+  questionsSourceOp = 'eq';
   questionsPage = 0;
   var searchInputEl = document.getElementById('questions-search-input');
   if (searchInputEl) searchInputEl.value = '';
-  await Promise.all([loadQuestionsTopics(resolvedQuestionsExamTypes()), loadQuestionsPage()]);
+  var resolvedTypes = resolvedQuestionsExamTypes();
+  await Promise.all([loadQuestionsTopics(resolvedTypes), loadQuestionsSources(resolvedTypes), loadQuestionsPage()]);
+  var sourceWrapEl = document.getElementById('questions-source-filter-wrap');
+  if (sourceWrapEl) sourceWrapEl.innerHTML = renderQuestionsSourceFilterHtml();
   drawQuestionsResults();
 }
 
@@ -515,6 +546,7 @@ async function renderQuestions() {
   appEl.innerHTML = renderTabs('questions') + renderQuestionsTrackPicker() +
     '<div class="card questions-toolbar">' +
     '<input type="search" class="settings-filter-input questions-search-input" id="questions-search-input" placeholder="Search question text…">' +
+    '<span id="questions-source-filter-wrap">' + renderQuestionsSourceFilterHtml() + '</span>' +
     '<button class="btn-primary btn-sm" data-act="import-questions">Import JSON…</button> ' +
     '<input type="file" id="import-file" class="hidden-file-input" accept="application/json">' +
     '</div>' +
@@ -2027,6 +2059,11 @@ appEl.addEventListener('click', async function (e) {
   } else if (act === 'toggle-visitors-region-op') {
     visitorsFilters.regionOp = visitorsFilters.regionOp === 'ne' ? 'eq' : 'ne';
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
+  } else if (act === 'toggle-questions-source-op') {
+    questionsSourceOp = questionsSourceOp === 'ne' ? 'eq' : 'ne';
+    var sourceWrapEl2 = document.getElementById('questions-source-filter-wrap');
+    if (sourceWrapEl2) sourceWrapEl2.innerHTML = renderQuestionsSourceFilterHtml();
+    if (questionsSourceFilter) { questionsPage = 0; await refreshQuestionsPage(); }
   } else if (act === 'reset-visitors-filters') {
     visitorsFilters = { preset: 'all', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationMin: '', maxDurationMin: '' };
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
@@ -2133,6 +2170,11 @@ appEl.addEventListener('input', function (e) {
 });
 appEl.addEventListener('change', function (e) {
   if (e.target.hasAttribute('data-original')) updateSettingsDirtyState(e.target);
+  if (e.target.id === 'questions-source-select') {
+    questionsSourceFilter = e.target.value;
+    questionsPage = 0;
+    refreshQuestionsPage();
+  }
 });
 
 document.addEventListener('change', async function (e) {
