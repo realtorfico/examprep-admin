@@ -1457,7 +1457,7 @@ async function renderStalledBuyers() {
 
 var visitorsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
-var visitorsFilters = { preset: 'all', country: '', region: '', minDurationMin: '', maxDurationMin: '' };
+var visitorsFilters = { preset: 'all', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationMin: '', maxDurationMin: '' };
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
 var VISITORS_NUMERIC_KEYS = new Set(['latitude', 'longitude', 'page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot']);
@@ -1488,10 +1488,16 @@ function visitorsFilterBarHtml() {
   var regionOptions = ['<option value="">All Regions</option>'].concat(visitorsFacets.regions.map(function (r) {
     return '<option value="' + escapeHtml(r) + '"' + (visitorsFilters.region === r ? ' selected' : '') + '>' + escapeHtml(r) + '</option>';
   })).join('');
+  var countryOpToggle = '<button type="button" class="btn-secondary btn-sm" data-act="toggle-visitors-country-op" title="Toggle is / is not">' +
+    (visitorsFilters.countryOp === 'ne' ? 'is not' : 'is') + '</button>';
+  var regionOpToggle = '<button type="button" class="btn-secondary btn-sm" data-act="toggle-visitors-region-op" title="Toggle is / is not">' +
+    (visitorsFilters.regionOp === 'ne' ? 'is not' : 'is') + '</button>';
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by date range">' + presetPills + '</div>' +
     '<div class="questions-toolbar">' +
     customRangeHtml +
+    '<label class="muted">Country</label>' + countryOpToggle +
     '<select id="visitors-country-select">' + countryOptions + '</select>' +
+    '<label class="muted">Region</label>' + regionOpToggle +
     '<select id="visitors-region-select">' + regionOptions + '</select>' +
     '<label class="muted">Duration (min):</label>' +
     '<input type="number" id="visitors-min-duration-input" placeholder="Min" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.minDurationMin) + '">' +
@@ -1533,8 +1539,14 @@ function visitorsQueryString() {
   visitorsFilters.region = regionSelect ? regionSelect.value : '';
   visitorsFilters.minDurationMin = minInput ? minInput.value : '';
   visitorsFilters.maxDurationMin = maxInput ? maxInput.value : '';
-  if (visitorsFilters.country) params.push('country=' + encodeURIComponent(visitorsFilters.country));
-  if (visitorsFilters.region) params.push('region=' + encodeURIComponent(visitorsFilters.region));
+  if (visitorsFilters.country) {
+    params.push('country=' + encodeURIComponent(visitorsFilters.country));
+    if (visitorsFilters.countryOp === 'ne') params.push('countryOp=ne');
+  }
+  if (visitorsFilters.region) {
+    params.push('region=' + encodeURIComponent(visitorsFilters.region));
+    if (visitorsFilters.regionOp === 'ne') params.push('regionOp=ne');
+  }
   if (visitorsFilters.minDurationMin) params.push('minDurationSec=' + (parseInt(visitorsFilters.minDurationMin, 10) * 60));
   if (visitorsFilters.maxDurationMin) params.push('maxDurationSec=' + (parseInt(visitorsFilters.maxDurationMin, 10) * 60));
   return params.length ? ('?' + params.join('&')) : '';
@@ -2009,8 +2021,14 @@ appEl.addEventListener('click', async function (e) {
     if (visitorsFilters.preset !== 'custom') await loadVisitors(); // custom needs the date inputs filled in first
   } else if (act === 'apply-visitors-filters') {
     await loadVisitors();
+  } else if (act === 'toggle-visitors-country-op') {
+    visitorsFilters.countryOp = visitorsFilters.countryOp === 'ne' ? 'eq' : 'ne';
+    document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
+  } else if (act === 'toggle-visitors-region-op') {
+    visitorsFilters.regionOp = visitorsFilters.regionOp === 'ne' ? 'eq' : 'ne';
+    document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
   } else if (act === 'reset-visitors-filters') {
-    visitorsFilters = { preset: 'all', country: '', region: '', minDurationMin: '', maxDurationMin: '' };
+    visitorsFilters = { preset: 'all', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationMin: '', maxDurationMin: '' };
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
     await loadVisitors();
   } else if (act === 'add-alert-rule') {
