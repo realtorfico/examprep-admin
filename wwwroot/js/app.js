@@ -944,7 +944,6 @@ function settingsSaveButton(act, group, label) {
 var PRICING_COLLAPSED_COUNT = 7;
 var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
-var pricingStateFilter = ''; // '' = All states; otherwise an EXAM_TYPES stateCode (e.g. 'CA')
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
 var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['kind', 'Category'], ['state', 'State'], ['examReq', 'Exam Req?'],
   ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
@@ -994,40 +993,17 @@ function applyPricingSortOrder() {
   rows.forEach(function (row) { tbody.appendChild(row); });
 }
 
-function pricingTrackMatchesFilters(t, stateFilter, kindFilter) {
-  return (!stateFilter || t[2] === stateFilter) && (!kindFilter || t[3] === kindFilter);
-}
-
-function renderPricingStateFilterPills() {
-  var codes = [];
-  EXAM_TYPES.forEach(function (t) { if (codes.indexOf(t[2]) === -1) codes.push(t[2]); });
-  codes.sort(function (a, b) { return (STATE_LABELS[a] || a).localeCompare(STATE_LABELS[b] || b); });
-  var allCount = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, '', pricingKindFilter); }).length;
-  var options = [['', 'All States (' + allCount + ')']].concat(codes.map(function (c) {
-    var count = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, c, pricingKindFilter); }).length;
-    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')', count];
-    // Hide a state with 0 tracks under the current kind filter (e.g. a kind picked that this state
-    // doesn't offer) -- the active selection stays visible even at 0 so it's still deselectable.
-  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === pricingStateFilter; });
-  return '<div class="settings-filter-pill" role="group" aria-label="Filter by state">' +
-    options.map(function (o) {
-      var active = pricingStateFilter === o[0];
-      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-pricing-state" data-state="' + o[0] + '"' +
-        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
-    }).join('') + '</div>';
-}
-
 function renderPricingKindFilterPills() {
   var kinds = [];
   EXAM_TYPES.forEach(function (t) { if (kinds.indexOf(t[3]) === -1) kinds.push(t[3]); });
   kinds.sort(function (a, b) { return a.localeCompare(b); });
-  var allCount = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, pricingStateFilter, ''); }).length;
-  var options = [['', 'All Types (' + allCount + ')']].concat(kinds.map(function (k) {
-    var count = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, pricingStateFilter, k); }).length;
-    return [k, k + ' (' + count + ')', count];
-    // Hide a kind with 0 tracks under the current state filter -- active selection stays visible
-    // even at 0 so it's still deselectable.
-  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === pricingKindFilter; });
+  // No state filter on this tab (removed -- the free-text search below already covers narrowing by
+  // state, since every track label includes its state name, e.g. "California Real Estate Broker"),
+  // so kind-pill counts are just a flat count per kind, no cross-filtering to combine with.
+  var options = [['', 'All Types (' + EXAM_TYPES.length + ')']].concat(kinds.map(function (k) {
+    var count = EXAM_TYPES.filter(function (t) { return t[3] === k; }).length;
+    return [k, k + ' (' + count + ')'];
+  }));
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by exam type">' +
     options.map(function (o) {
       var active = pricingKindFilter === o[0];
@@ -1042,8 +1018,7 @@ function updatePricingRowVisibility() {
   var matchCount = 0, shown = 0;
   rows.forEach(function (row) {
     var matchesText = !q || row.children[PRICING_CELL_INDEX.track].textContent.toLowerCase().indexOf(q) !== -1;
-    var matchesCategory = (!pricingStateFilter || row.dataset.state === pricingStateFilter) &&
-      (!pricingKindFilter || row.dataset.kind === pricingKindFilter);
+    var matchesCategory = !pricingKindFilter || row.dataset.kind === pricingKindFilter;
     var matches = matchesText && matchesCategory;
     if (matches) matchCount++;
     var visible = matches && (pricingRowsExpanded || shown < PRICING_COLLAPSED_COUNT);
@@ -1126,8 +1101,7 @@ async function renderTracks() {
     settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
     '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
-    '<div class="settings-filter-pills-row" id="pricing-state-filter-wrap">' + renderPricingStateFilterPills() + '</div>' +
-    '<input type="search" class="settings-filter-input" placeholder="Filter tracks…">' +
+    '<input type="search" class="settings-filter-input" placeholder="Filter tracks (e.g. by state)…">' +
     '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
     '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
@@ -1931,21 +1905,12 @@ appEl.addEventListener('click', async function (e) {
   } else if (act === 'toggle-pricing-rows') {
     pricingRowsExpanded = !pricingRowsExpanded;
     updatePricingRowVisibility();
-  } else if (act === 'filter-pricing-state') {
-    var newPricingStateFilter = el.getAttribute('data-state');
-    if (newPricingStateFilter === pricingStateFilter) return;
-    pricingStateFilter = newPricingStateFilter;
-    pricingRowsExpanded = false;
-    document.getElementById('pricing-state-filter-wrap').innerHTML = renderPricingStateFilterPills();
-    document.getElementById('pricing-kind-filter-wrap').innerHTML = renderPricingKindFilterPills(); // its counts depend on the state filter too
-    updatePricingRowVisibility();
   } else if (act === 'filter-pricing-kind') {
     var newPricingKindFilter = el.getAttribute('data-kind');
     if (newPricingKindFilter === pricingKindFilter) return;
     pricingKindFilter = newPricingKindFilter;
     pricingRowsExpanded = false;
     document.getElementById('pricing-kind-filter-wrap').innerHTML = renderPricingKindFilterPills();
-    document.getElementById('pricing-state-filter-wrap').innerHTML = renderPricingStateFilterPills(); // its counts depend on the kind filter too
     updatePricingRowVisibility();
   } else if (act === 'sort-pricing') {
     var pricingSortKey = el.getAttribute('data-key');
