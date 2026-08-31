@@ -141,6 +141,12 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .badge.redeemed { background: color-mix(in srgb, var(--correct) 18%, transparent); color: var(--correct); border-color: color-mix(in srgb, var(--correct) 35%, transparent); }
 .badge.active { background: color-mix(in srgb, var(--correct) 18%, transparent); color: var(--correct); border-color: color-mix(in srgb, var(--correct) 35%, transparent); }
 
+/* Codes table: rows used within the last 7 days get a bold, gold-tinted highlight so recent
+   activity stands out at a glance against the default sort (most recently used first). */
+tr.code-row-recent { font-weight: 600; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+tr.code-row-recent td:first-child { border-left: 3px solid var(--accent); }
+tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inherit font-weight from the row by default */
+
 .generate-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .expires-input { width: 11rem; }
 .stalled-days-input { width: 5rem; }

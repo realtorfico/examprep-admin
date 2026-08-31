@@ -257,7 +257,7 @@ var CODES_COLUMNS = [['code', 'Code'], ['exam', 'Exam'], ['status', 'Status'], [
   ['redeemed', 'Redeemed'], ['lastUsed', 'Last Used'], ['accuracy', 'Accuracy'], ['coverage', 'Coverage'], ['examCount', 'Mock Exams']];
 var CODES_CELL_INDEX = { code: 0, exam: 1, status: 2, note: 3, expires: 4, redeemed: 5, lastUsed: 6, accuracy: 7, coverage: 8, examCount: 9 };
 
-var codesSort = { key: '', dir: 1 }; // key: '' = unsorted (original /console/codes order)
+var codesSort = { key: 'lastUsed', dir: -1 }; // default: most recently used first
 
 // Same DOM-node-reordering approach as applyPricingSortOrder() (see its comment) -- Note/Expires
 // are live editable inputs, so a data-driven re-render would wipe any unsaved in-progress edit.
@@ -362,13 +362,15 @@ async function renderCodes() {
     examCountByCode[a.code] = (examCountByCode[a.code] || 0) + 1;
   });
 
+  var recentCutoff = Math.floor(Date.now() / 1000) - 7 * 86400;
   var rows = data.codes.map(function (c) {
     var expiresIso = c.expires_at ? isoDateFromUnix(c.expires_at) : '';
     var progress = progressByCode[c.code];
     var accuracyCell = progress && progress.accuracyPct != null ? progress.accuracyPct + '%' : '—';
     var coverageCell = progress && progress.coveragePct != null ? progress.coveragePct + '%' : '—';
     var examCountCell = examCountByCode[c.code] || 0;
-    return '<tr data-code="' + escapeHtml(c.code) + '" data-status="' + escapeHtml(c.status) + '" data-exam="' + escapeHtml(c.exam_type) + '"><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
+    var recentClass = c.last_used_at && c.last_used_at >= recentCutoff ? ' code-row-recent' : '';
+    return '<tr data-code="' + escapeHtml(c.code) + '" data-status="' + escapeHtml(c.status) + '" data-exam="' + escapeHtml(c.exam_type) + '" class="' + recentClass.trim() + '"><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
       '<td><input type="text" class="code-note-input" data-original="' + escapeHtml(c.note || '') + '" value="' + escapeHtml(c.note || '') + '"></td>' +
       '<td><input type="date" class="code-expires-input" data-original="' + expiresIso + '" value="' + expiresIso + '"></td>' +
