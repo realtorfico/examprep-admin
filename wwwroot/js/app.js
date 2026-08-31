@@ -1877,6 +1877,7 @@ function drawVisitorsTable() {
     var pages;
     try { pages = JSON.parse(v.pages_json || '[]'); } catch (e) { pages = []; }
     return '<tr' + (v.is_bot ? ' class="visitor-row-bot"' : '') + '>' +
+      '<td><button class="btn-secondary btn-sm" data-act="open-visitor-detail" data-session-id="' + escapeHtml(v.session_id || '') + '">Details</button></td>' +
       '<td>' + fmtDate(v.last_seen_at) + '</td><td>' + fmtDate(v.first_seen_at) + '</td>' +
       '<td>' + formatDuration(v.duration_sec) + '</td>' +
       '<td>' + escapeHtml(v.ip_address || '—') + '</td>' +
@@ -1887,11 +1888,10 @@ function drawVisitorsTable() {
       '<td class="visitor-referrer-cell" title="' + escapeHtml(v.referrer || '') + '">' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</td>' +
       '<td>' + escapeHtml(v.landing_path || '—') + '</td>' +
       '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
-      '<td><button class="btn-secondary btn-sm" data-act="open-visitor-detail" data-session-id="' + escapeHtml(v.session_id || '') + '">Details</button></td>' +
       '</tr>';
   }).join('');
   container.innerHTML = '<div class="settings-table-scroll"><table><thead id="visitors-table-head">' +
-    sortableHeaderRow(VISITORS_COLUMNS, visitorsSort, 'sort-visitors').replace('</tr>', '<th></th></tr>') + '</thead><tbody>' + body + '</tbody></table></div>';
+    sortableHeaderRow(VISITORS_COLUMNS, visitorsSort, 'sort-visitors').replace('<tr>', '<tr><th></th>') + '</thead><tbody>' + body + '</tbody></table></div>';
 }
 
 // Visitor detail modal -- same overlay pattern as the Codes table's per-code drilldown
