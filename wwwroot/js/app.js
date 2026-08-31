@@ -1472,7 +1472,10 @@ async function renderStalledBuyers() {
 
 var visitorsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
-var visitorsFilters = { preset: 'all', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationMin: '', maxDurationMin: '' };
+// Default view: last 7 days, at least 1 minute on site -- cuts out same-day bounce/bot noise so
+// the table opens on something worth looking at rather than every hit ever recorded.
+var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationMin: '1', maxDurationMin: '' };
+var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
 var VISITORS_NUMERIC_KEYS = new Set(['latitude', 'longitude', 'page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot']);
@@ -2039,7 +2042,7 @@ appEl.addEventListener('click', async function (e) {
     if (sourceWrapEl2) sourceWrapEl2.innerHTML = renderQuestionsSourceFilterHtml();
     if (questionsSourceFilter) { questionsPage = 0; await refreshQuestionsPage(); }
   } else if (act === 'reset-visitors-filters') {
-    visitorsFilters = { preset: 'all', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationMin: '', maxDurationMin: '' };
+    visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
     await loadVisitors();
   } else if (act === 'add-alert-rule') {
