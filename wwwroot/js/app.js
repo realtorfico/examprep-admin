@@ -255,14 +255,41 @@ function isoDateFromUnix(ts) {
 
 async function renderCodes() {
   appEl.innerHTML = renderTabs('codes') + '<p>Loading…</p>';
-  var data = await apiFetch('/console/codes');
+  // Accuracy/Coverage/Mock Exams are read-only, computed the same way the Stats page's own "User
+  // progress" section already does (reuses groupQuizProgressByUser(), no new backend logic) --
+  // /console/quiz-progress only has rows for users with at least one progress row (see its own SQL
+  // comment), so a redeemed-but-never-quizzed code correctly has no entry and shows "—" below.
+  var results = await Promise.all([apiFetch('/console/codes'), apiFetch('/console/quiz-progress'), apiFetch('/console/exam-attempts')]);
+  var data = results[0];
+  var progressGroups = groupQuizProgressByUser(results[1].items || []);
+  var progressByCode = {};
+  progressGroups.forEach(function (u) {
+    if (!u.code) return;
+    progressByCode[u.code] = {
+      accuracyPct: u.total ? Math.round((100 * u.correct) / u.total) : null,
+      coveragePct: u.topicTotal ? Math.round((100 * u.seen) / u.topicTotal) : null,
+    };
+  });
+  var examCountByCode = {};
+  (results[2].items || []).forEach(function (a) {
+    if (!a.code) return;
+    examCountByCode[a.code] = (examCountByCode[a.code] || 0) + 1;
+  });
+
   var rows = data.codes.map(function (c) {
     var expiresIso = c.expires_at ? isoDateFromUnix(c.expires_at) : '';
+    var progress = progressByCode[c.code];
+    var accuracyCell = progress && progress.accuracyPct != null ? progress.accuracyPct + '%' : '—';
+    var coverageCell = progress && progress.coveragePct != null ? progress.coveragePct + '%' : '—';
+    var examCountCell = examCountByCode[c.code] || 0;
     return '<tr data-code="' + escapeHtml(c.code) + '"><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
       '<td><input type="text" class="code-note-input" data-original="' + escapeHtml(c.note || '') + '" value="' + escapeHtml(c.note || '') + '"></td>' +
       '<td><input type="date" class="code-expires-input" data-original="' + expiresIso + '" value="' + expiresIso + '"></td>' +
       '<td>' + (c.redeemed_at ? new Date(c.redeemed_at * 1000).toLocaleDateString() : '—') + '</td>' +
+      '<td class="settings-readonly-cell">' + accuracyCell + '</td>' +
+      '<td class="settings-readonly-cell">' + coverageCell + '</td>' +
+      '<td class="settings-readonly-cell">' + examCountCell + '</td>' +
       '<td><button class="btn-secondary btn-sm" data-act="save-code" data-code="' + escapeHtml(c.code) + '">Save</button> ' +
       (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td></tr>';
   }).join('');
@@ -277,7 +304,8 @@ async function renderCodes() {
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
     '</form></div>' +
-    '<table><thead><tr><th>Code</th><th>Exam</th><th>Status</th><th>Note</th><th>Expires</th><th>Redeemed</th><th></th></tr></thead>' +
+    '<table><thead><tr><th>Code</th><th>Exam</th><th>Status</th><th>Note</th><th>Expires</th><th>Redeemed</th>' +
+    '<th>Accuracy</th><th>Coverage</th><th>Mock Exams</th><th></th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
 }
 
