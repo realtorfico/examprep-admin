@@ -253,6 +253,48 @@ function isoDateFromUnix(ts) {
   return d.getFullYear() + '-' + mm + '-' + dd;
 }
 
+var CODES_COLUMNS = [['code', 'Code'], ['exam', 'Exam'], ['status', 'Status'], ['note', 'Note'], ['expires', 'Expires'],
+  ['redeemed', 'Redeemed'], ['accuracy', 'Accuracy'], ['coverage', 'Coverage'], ['examCount', 'Mock Exams']];
+var CODES_CELL_INDEX = { code: 0, exam: 1, status: 2, note: 3, expires: 4, redeemed: 5, accuracy: 6, coverage: 7, examCount: 8 };
+
+var codesSort = { key: '', dir: 1 }; // key: '' = unsorted (original /console/codes order)
+
+// Same DOM-node-reordering approach as applyPricingSortOrder() (see its comment) -- Note/Expires
+// are live editable inputs, so a data-driven re-render would wipe any unsaved in-progress edit.
+function applyCodesSortOrder() {
+  if (!codesSort.key) return;
+  var tbody = document.getElementById('codes-rows-body');
+  if (!tbody) return;
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-code]'));
+  var key = codesSort.key;
+  rows.sort(function (a, b) {
+    var av, bv;
+    if (key === 'note') {
+      av = a.querySelector('.code-note-input').value.toLowerCase(); bv = b.querySelector('.code-note-input').value.toLowerCase();
+    } else if (key === 'expires') {
+      // 'YYYY-MM-DD' or '' (no expiry) -- lexicographic works for ISO dates; empty sorts first ascending.
+      av = a.querySelector('.code-expires-input').value; bv = b.querySelector('.code-expires-input').value;
+    } else if (key === 'redeemed') {
+      // Cell shows a locale date string or "—" -- sort by the raw unix timestamp stashed as data-ts instead.
+      av = Number(a.children[CODES_CELL_INDEX.redeemed].dataset.ts || 0);
+      bv = Number(b.children[CODES_CELL_INDEX.redeemed].dataset.ts || 0);
+    } else if (key === 'accuracy' || key === 'coverage' || key === 'examCount') {
+      // "83%" / "0" / "—" -- parseFloat stops at the first non-numeric char; "—" (NaN) sorts lowest.
+      av = parseFloat(a.children[CODES_CELL_INDEX[key]].textContent);
+      bv = parseFloat(b.children[CODES_CELL_INDEX[key]].textContent);
+      av = isNaN(av) ? -Infinity : av; bv = isNaN(bv) ? -Infinity : bv;
+    } else {
+      // code / exam / status -- plain text compare on whatever column this key maps to.
+      var idx = CODES_CELL_INDEX[key];
+      av = a.children[idx].textContent.toLowerCase(); bv = b.children[idx].textContent.toLowerCase();
+    }
+    if (av < bv) return -1 * codesSort.dir;
+    if (av > bv) return 1 * codesSort.dir;
+    return 0;
+  });
+  rows.forEach(function (row) { tbody.appendChild(row); });
+}
+
 async function renderCodes() {
   appEl.innerHTML = renderTabs('codes') + '<p>Loading…</p>';
   // Accuracy/Coverage/Mock Exams are read-only, computed the same way the Stats page's own "User
@@ -286,7 +328,7 @@ async function renderCodes() {
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
       '<td><input type="text" class="code-note-input" data-original="' + escapeHtml(c.note || '') + '" value="' + escapeHtml(c.note || '') + '"></td>' +
       '<td><input type="date" class="code-expires-input" data-original="' + expiresIso + '" value="' + expiresIso + '"></td>' +
-      '<td>' + (c.redeemed_at ? new Date(c.redeemed_at * 1000).toLocaleDateString() : '—') + '</td>' +
+      '<td data-ts="' + (c.redeemed_at || 0) + '">' + (c.redeemed_at ? new Date(c.redeemed_at * 1000).toLocaleDateString() : '—') + '</td>' +
       '<td class="settings-readonly-cell">' + accuracyCell + '</td>' +
       '<td class="settings-readonly-cell">' + coverageCell + '</td>' +
       '<td class="settings-readonly-cell">' + examCountCell + '</td>' +
@@ -304,9 +346,9 @@ async function renderCodes() {
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
     '</form></div>' +
-    '<table><thead><tr><th>Code</th><th>Exam</th><th>Status</th><th>Note</th><th>Expires</th><th>Redeemed</th>' +
-    '<th>Accuracy</th><th>Coverage</th><th>Mock Exams</th><th></th></tr></thead>' +
-    '<tbody>' + rows + '</tbody></table>';
+    '<table><thead id="codes-table-head">' + sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</tr>', '<th></th></tr>') + '</thead>' +
+    '<tbody id="codes-rows-body">' + rows + '</tbody></table>';
+  applyCodesSortOrder();
 }
 
 // ---- Questions --------------------------------------------------------
@@ -1986,6 +2028,12 @@ appEl.addEventListener('click', async function (e) {
     applyPricingSortOrder();
     document.getElementById('pricing-table-head').innerHTML = sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing');
     updatePricingRowVisibility(); // collapse cutoff depends on row order, which just changed
+  } else if (act === 'sort-codes') {
+    var codesSortKey = el.getAttribute('data-key');
+    if (codesSort.key === codesSortKey) codesSort.dir *= -1;
+    else { codesSort.key = codesSortKey; codesSort.dir = 1; }
+    applyCodesSortOrder();
+    document.getElementById('codes-table-head').innerHTML = sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</tr>', '<th></th></tr>');
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {
       return inp.value !== inp.dataset.original;
