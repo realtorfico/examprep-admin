@@ -194,6 +194,11 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .settings-readonly-cell { text-align: right; white-space: nowrap; }
 .settings-bankpct-high, .settings-bankpct-high td { color: var(--incorrect); font-weight: 600; }
 .settings-bankpct-low, .settings-bankpct-low td { color: var(--correct); font-weight: 600; }
+/* Exam Qs/Duration/Pass Score/Min Correct on a track with "Exam Req? No" -- these describe our own
+   self-set practice mock-exam benchmark, not a real state requirement (see the row-building comment
+   in app.js). Italicized + a lower opacity so it visibly reads as "not the same kind of fact" as
+   the other columns, at a glance, without needing to hover the tooltip every time. */
+.settings-practice-only { font-style: italic; opacity: 0.7; cursor: help; }
 /* 7 columns wide once Questions/Exam Qs/Duration/Pass Score are all showing -- scrolls inside its
    own box on narrow viewports instead of forcing the whole page to scroll horizontally. */
 .settings-table-scroll { overflow-x: auto; }

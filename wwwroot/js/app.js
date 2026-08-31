@@ -1078,6 +1078,15 @@ async function renderTracks() {
     // same thin-bank ratio isn't worth flagging the same way. Low-ratio tracks keep the existing
     // green "healthy bank" indicator regardless of exam-required status.
     var bankPctRowClass = bankPct === null ? '' : (bankPct > 25 && examRequired ? 'settings-bankpct-high' : (bankPct <= 25 ? 'settings-bankpct-low' : ''));
+    // Exam Qs/Duration/Pass Score/Min Correct are populated for EVERY track, including ones with
+    // "Exam Req? No" -- those numbers aren't fake or a data error, they're the self-set benchmark
+    // for this site's own practice mock-exam feature (which we still offer even when the real state
+    // has no graded exam to require), same thing the public site's own per-track disclaimer already
+    // discloses ("a self-directed study benchmark we set for practice purposes only..."). Without
+    // that context here too, a real Pass Score/Min Correct sitting right next to "No" reads as
+    // contradictory -- italicized + a tooltip carries the same disclosure into this table.
+    var practiceOnlyAttrs = examRequired ? '' : ' class="muted settings-readonly-cell settings-practice-only" title="No real state exam exists for this track -- these are this site\'s own self-set practice mock-exam benchmark, not a state requirement."';
+    var mockExamCellAttrs = examRequired ? ' class="muted settings-readonly-cell"' : practiceOnlyAttrs;
     return '<tr class="' + bankPctRowClass + '" data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
       '<td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
@@ -1087,17 +1096,18 @@ async function renderTracks() {
       '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted settings-readonly-cell">' + (examRequired ? 'Yes' : 'No') + '</td>' +
       '<td class="muted settings-readonly-cell">' + questionCount + '</td>' +
-      '<td class="muted settings-readonly-cell">' + examConfig.questionCount + '</td>' +
+      '<td' + mockExamCellAttrs + '>' + examConfig.questionCount + '</td>' +
       '<td class="muted settings-readonly-cell">' + bankPctLabel + '</td>' +
-      '<td class="muted settings-readonly-cell" data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
-      '<td class="muted settings-readonly-cell">' + examConfig.passPercent + '%</td>' +
-      '<td class="muted settings-readonly-cell">' + (examConfig.minCorrect != null ? examConfig.minCorrect : '—') + '</td></tr>';
+      '<td' + mockExamCellAttrs + ' data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
+      '<td' + mockExamCellAttrs + '>' + examConfig.passPercent + '%</td>' +
+      '<td' + mockExamCellAttrs + '>' + (examConfig.minCorrect != null ? examConfig.minCorrect : '—') + '</td></tr>';
   }).join('');
 
   appEl.innerHTML = renderTabs('tracks') +
     '<section class="card settings-edit-group" data-group="pricing">' +
     '<div class="settings-edit-toolbar">' +
-    '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD.</p></div>' +
+    '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD. ' +
+    'For a track marked "Exam Req? No," Exam Qs/Duration/Pass Score/Min Correct (shown italicized below) describe this site\'s own self-set practice mock-exam benchmark, not a real state requirement -- the real state has no graded exam for that track.</p></div>' +
     settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
     '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
