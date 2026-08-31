@@ -512,7 +512,9 @@ async function openCodeDetail(code) {
   backdrop.className = 'code-detail-backdrop';
   backdrop.id = 'code-detail-backdrop';
   backdrop.innerHTML = '<div class="code-detail-modal"><p class="muted">Loading…</p></div>';
-  backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeCodeDetail(); });
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop || e.target.closest('[data-act="close-code-detail"]')) closeCodeDetail();
+  });
   document.body.appendChild(backdrop);
 
   try {
@@ -2084,8 +2086,6 @@ appEl.addEventListener('click', async function (e) {
     renderCodes();
   } else if (act === 'open-code-detail') {
     openCodeDetail(el.getAttribute('data-code'));
-  } else if (act === 'close-code-detail') {
-    closeCodeDetail();
   } else if (act === 'save-code') {
     var codeRow = el.closest('tr');
     var noteInput = codeRow.querySelector('.code-note-input');
