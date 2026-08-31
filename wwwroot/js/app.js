@@ -243,16 +243,28 @@ function drawCategories() {
 
 // ---- Codes ----------------------------------------------------------------
 
+// 'YYYY-MM-DD' for an <input type="date">'s value, in LOCAL time (matching how the browser's own
+// date picker and toLocaleDateString() both already display dates elsewhere on this page) --
+// toISOString() would silently shift the displayed date near a UTC day boundary.
+function isoDateFromUnix(ts) {
+  var d = new Date(ts * 1000);
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + mm + '-' + dd;
+}
+
 async function renderCodes() {
   appEl.innerHTML = renderTabs('codes') + '<p>Loading…</p>';
   var data = await apiFetch('/console/codes');
   var rows = data.codes.map(function (c) {
-    return '<tr><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
+    var expiresIso = c.expires_at ? isoDateFromUnix(c.expires_at) : '';
+    return '<tr data-code="' + escapeHtml(c.code) + '"><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
-      '<td>' + (c.note || '—') + '</td>' +
-      '<td>' + (c.expires_at ? new Date(c.expires_at * 1000).toLocaleDateString() : '—') + '</td>' +
+      '<td><input type="text" class="code-note-input" data-original="' + escapeHtml(c.note || '') + '" value="' + escapeHtml(c.note || '') + '"></td>' +
+      '<td><input type="date" class="code-expires-input" data-original="' + expiresIso + '" value="' + expiresIso + '"></td>' +
       '<td>' + (c.redeemed_at ? new Date(c.redeemed_at * 1000).toLocaleDateString() : '—') + '</td>' +
-      '<td>' + (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td></tr>';
+      '<td><button class="btn-secondary btn-sm" data-act="save-code" data-code="' + escapeHtml(c.code) + '">Save</button> ' +
+      (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td></tr>';
   }).join('');
 
   appEl.innerHTML = renderTabs('codes') +
@@ -1815,6 +1827,20 @@ appEl.addEventListener('click', async function (e) {
   if (act === 'revoke-code') {
     await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: el.getAttribute('data-code') } });
     renderCodes();
+  } else if (act === 'save-code') {
+    var codeRow = el.closest('tr');
+    var noteInput = codeRow.querySelector('.code-note-input');
+    var expiresInput = codeRow.querySelector('.code-expires-input');
+    var noteVal = noteInput.value.trim();
+    // Local midnight for the picked date (matching isoDateFromUnix()'s own local-time reasoning),
+    // not UTC midnight -- avoids the expiry silently landing on the wrong calendar day depending on
+    // the admin's timezone.
+    var expiresAtVal = expiresInput.value ? Math.floor(new Date(expiresInput.value + 'T00:00:00').getTime() / 1000) : null;
+    await apiFetch('/console/codes/update', { method: 'POST', body: { code: el.getAttribute('data-code'), note: noteVal || null, expiresAt: expiresAtVal } });
+    noteInput.setAttribute('data-original', noteVal);
+    expiresInput.setAttribute('data-original', expiresInput.value);
+    el.textContent = 'Saved!';
+    setTimeout(function () { el.textContent = 'Save'; }, 1500);
   } else if (act === 'add-promotion') {
     promotionFormState = 'new';
     drawPromotions();
