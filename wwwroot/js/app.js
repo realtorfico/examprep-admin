@@ -352,8 +352,11 @@ function renderQuestionsKindFilterPills() {
   var allCount = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, '', questionsStateFilter); }).length;
   var options = [['', 'All Kinds (' + allCount + ')']].concat(kinds.map(function (k) {
     var count = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, k, questionsStateFilter); }).length;
-    return [k, k + ' (' + count + ')'];
-  }));
+    return [k, k + ' (' + count + ')', count];
+    // A kind with 0 tracks under the current state filter (e.g. a state with no Notary track) is
+    // hidden below -- except the currently-active selection, kept visible so it stays deselectable
+    // even if the OTHER pill you just clicked made this combo come up empty.
+  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === questionsKindFilter; });
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by exam kind">' +
     options.map(function (o) {
       var active = questionsKindFilter === o[0];
@@ -369,8 +372,10 @@ function renderQuestionsStateFilterPills() {
   var allCount = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, questionsKindFilter, ''); }).length;
   var options = [['', 'All States (' + allCount + ')']].concat(codes.map(function (c) {
     var count = EXAM_TYPES.filter(function (t) { return questionsTrackMatchesFilters(t, questionsKindFilter, c); }).length;
-    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')'];
-  }));
+    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')', count];
+    // Same 0-count hiding as the kind pills above (e.g. a kind picked that this state doesn't
+    // offer) -- the active selection stays visible even at 0 so it's still deselectable.
+  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === questionsStateFilter; });
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by state">' +
     options.map(function (o) {
       var active = questionsStateFilter === o[0];
@@ -1000,8 +1005,10 @@ function renderPricingStateFilterPills() {
   var allCount = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, '', pricingKindFilter); }).length;
   var options = [['', 'All States (' + allCount + ')']].concat(codes.map(function (c) {
     var count = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, c, pricingKindFilter); }).length;
-    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')'];
-  }));
+    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')', count];
+    // Hide a state with 0 tracks under the current kind filter (e.g. a kind picked that this state
+    // doesn't offer) -- the active selection stays visible even at 0 so it's still deselectable.
+  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === pricingStateFilter; });
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by state">' +
     options.map(function (o) {
       var active = pricingStateFilter === o[0];
@@ -1017,8 +1024,10 @@ function renderPricingKindFilterPills() {
   var allCount = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, pricingStateFilter, ''); }).length;
   var options = [['', 'All Types (' + allCount + ')']].concat(kinds.map(function (k) {
     var count = EXAM_TYPES.filter(function (t) { return pricingTrackMatchesFilters(t, pricingStateFilter, k); }).length;
-    return [k, k + ' (' + count + ')'];
-  }));
+    return [k, k + ' (' + count + ')', count];
+    // Hide a kind with 0 tracks under the current state filter -- active selection stays visible
+    // even at 0 so it's still deselectable.
+  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === pricingKindFilter; });
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by exam type">' +
     options.map(function (o) {
       var active = pricingKindFilter === o[0];
