@@ -1143,8 +1143,9 @@ async function renderStats() {
   appEl.innerHTML = renderTabs('stats') + '<p>Loading…</p>';
   var results = await Promise.all([
     apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts'), apiFetch('/console/quiz-progress'),
+    apiFetch('/console/funnel').catch(function () { return { stages: [] }; }),
   ]);
-  var s = results[0], resourceProgress = results[1], examAttempts = results[2], quizProgress = results[3];
+  var s = results[0], resourceProgress = results[1], examAttempts = results[2], quizProgress = results[3], funnel = results[4];
   if (typeof quizProgress.accuracyPassPct === 'number') accuracyPassPct = quizProgress.accuracyPassPct;
   if (typeof quizProgress.coveragePassPct === 'number') coveragePassPct = quizProgress.coveragePassPct;
   if (typeof quizProgress.leaderboardMinQuestions === 'number') leaderboardMinQuestions = quizProgress.leaderboardMinQuestions;
@@ -1169,8 +1170,18 @@ async function renderStats() {
   }).join('');
   var leaderboardEmpty = quizProgressGroupsCache.length ? '' : '<p class="muted">No quiz activity yet.</p>';
 
+  var funnelStages = funnel.stages || [];
+  var funnelHtml = funnelStages.length
+    ? '<div class="card"><h3>Marketing Funnel (all-time)</h3>' +
+      '<p class="muted page-intro-text">Independent stage totals, not a strict single path -- a visitor can skip straight to purchase without completing a sample quiz first.</p>' +
+      '<div class="code-detail-stat-grid">' + funnelStages.map(function (st) {
+        return codeDetailStat(st.label, st.count);
+      }).join('') + '</div></div>'
+    : '';
+
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
+    funnelHtml +
     '<div class="stats-grid">' +
     '<div class="stats-column"><h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table></div>' +
     '<div class="stats-column"><h3>Accuracy by topic</h3><div id="accuracy-table-container"></div></div>' +
