@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -238,6 +238,74 @@ function drawCategories() {
     'CDL, Real Estate Salesperson — aggregating every state that offers it). Pass rate, track count, and topic breakdown are computed ' +
     'from the Tracks tab\'s data automatically and aren\'t edited here.</p>' +
     '<div class="card"><div id="category-form-wrap">' + categoryFormHtml() + '</div>' + addButton + '</div>' +
+    empty + rows;
+}
+
+// ---- Blog (educational articles) -------------------------------------------
+// Admin-authored articles, published straight to the live site's DB-backed /blog and
+// /blog/:slug pages -- no code deploy needed to publish (see the API's schema.sql blog_posts
+// comment). kind is the category slug (same list category_content uses), so each post cross-
+// links to its category page on the site.
+
+var blogCache = [];
+var blogCategoriesCache = []; // fetched alongside blog posts, just for the kind <select> options
+var blogFormState = null; // null (closed) | 'new' | the post object being edited
+
+function blogFormHtml() {
+  if (!blogFormState) return '';
+  var editing = blogFormState !== 'new';
+  var p = editing ? blogFormState : {};
+  var kindOptions = blogCategoriesCache.map(function (c) {
+    return '<option value="' + escapeHtml(c.slug) + '"' + (p.kind === c.slug ? ' selected' : '') + '>' + escapeHtml(c.label) + '</option>';
+  }).join('');
+  return '<form class="card promotion-form" data-act="save-blog" data-id="' + (editing ? p.id : '') + '">' +
+    '<h3>' + (editing ? 'Edit article' : 'Add article') + '</h3>' +
+    '<label>Slug (URL segment, e.g. "notary-exam-what-to-expect")<input type="text" name="slug" required value="' + escapeHtml(p.slug || '') + '"></label>' +
+    '<label>Category<select name="kind" required>' + kindOptions + '</select></label>' +
+    '<label>State (optional, 2-letter code — leave blank if not state-specific)<input type="text" name="stateCode" maxlength="2" placeholder="NY" value="' + escapeHtml(p.state_code || '') + '"></label>' +
+    '<label>Title<input type="text" name="title" required value="' + escapeHtml(p.title || '') + '"></label>' +
+    '<label>Excerpt (shown on the blog list page, and as a fallback SEO description)<textarea name="excerpt" required rows="2">' + escapeHtml(p.excerpt || '') + '</textarea></label>' +
+    '<label>Body (HTML — paragraphs, headings, lists, links)<textarea name="bodyHtml" required rows="14">' + escapeHtml(p.body_html || '') + '</textarea></label>' +
+    '<label>SEO title (optional — falls back to Title)<input type="text" name="seoTitle" value="' + escapeHtml(p.seo_title || '') + '"></label>' +
+    '<label>SEO description (optional — falls back to Excerpt)<textarea name="seoDescription" rows="2">' + escapeHtml(p.seo_description || '') + '</textarea></label>' +
+    '<label class="promotion-active-toggle"><input type="checkbox" name="published"' + (p.status === 'published' ? ' checked' : '') + '> Published (unchecked = draft, not visible on the site)</label>' +
+    '<div class="progress-reset-actions">' +
+    '<button class="btn-primary" type="submit">Save</button>' +
+    '<button class="btn-secondary" type="button" data-act="cancel-blog-form">Cancel</button>' +
+    '</div></form>';
+}
+
+function blogRowHtml(p) {
+  return '<div class="card promotion-row">' +
+    '<div class="promotion-row-top">' +
+    '<strong>' + escapeHtml(p.title) + '</strong> ' +
+    '<span class="badge' + (p.status === 'published' ? ' active' : '') + '">' + (p.status === 'published' ? 'Published' : 'Draft') + '</span> ' +
+    '<span class="muted">/blog/' + escapeHtml(p.slug) + '</span>' +
+    '</div>' +
+    '<p class="muted promotion-row-body">' + escapeHtml(p.excerpt) + '</p>' +
+    '<div class="promotion-row-actions">' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="edit-blog" data-id="' + escapeHtml(p.id) + '">Edit</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="delete-blog" data-id="' + escapeHtml(p.id) + '">Delete</button>' +
+    '</div></div>';
+}
+
+async function renderBlog() {
+  appEl.innerHTML = renderTabs('blog') + '<p>Loading…</p>';
+  var results = await Promise.all([apiFetch('/console/blog'), apiFetch('/console/category-content')]);
+  blogCache = results[0].posts;
+  blogCategoriesCache = results[1].categories;
+  drawBlog();
+}
+
+function drawBlog() {
+  var rows = blogCache.map(blogRowHtml).join('');
+  var empty = blogCache.length ? '' : '<p class="muted">No articles yet.</p>';
+  var addButton = blogFormState ? '' : '<button class="btn-primary btn-sm" type="button" data-act="add-blog">+ Add article</button>';
+  appEl.innerHTML = renderTabs('blog') +
+    '<p class="muted page-intro-text">Educational articles for the public site\'s /blog. Publishing here goes live immediately -- no ' +
+    'code deploy needed. New/edited articles get real SEO meta and a sitemap.xml entry on the next daily regen run (or run ' +
+    '`node scripts/generate-seo-meta.js` in the site repo manually for an immediate update).</p>' +
+    '<div class="card"><div id="blog-form-wrap">' + blogFormHtml() + '</div>' + addButton + '</div>' +
     empty + rows;
 }
 
@@ -2119,6 +2187,7 @@ function route() {
   if (view === 'codes') renderCodes();
   else if (view === 'tracks') renderTracks();
   else if (view === 'categories') renderCategories();
+  else if (view === 'blog') renderBlog();
   else if (view === 'questions') renderQuestions();
   else if (view === 'stats') renderStats();
   else if (view === 'points') renderPoints();
@@ -2226,6 +2295,29 @@ appEl.addEventListener('submit', async function (e) {
     }
     categoryFormState = null;
     renderCategories();
+  } else if (act === 'save-blog') {
+    e.preventDefault();
+    var bf = e.target;
+    var body = {
+      id: bf.getAttribute('data-id') || undefined,
+      slug: bf.slug.value.trim(),
+      kind: bf.kind.value,
+      stateCode: bf.stateCode.value.trim().toUpperCase() || undefined,
+      title: bf.title.value.trim(),
+      excerpt: bf.excerpt.value.trim(),
+      bodyHtml: bf.bodyHtml.value,
+      seoTitle: bf.seoTitle.value.trim() || undefined,
+      seoDescription: bf.seoDescription.value.trim() || undefined,
+      status: bf.published.checked ? 'published' : 'draft',
+    };
+    try {
+      await apiFetch('/console/blog/upsert', { method: 'POST', body: body });
+    } catch (err) {
+      alert('Could not save this article. (' + ((err.data && err.data.error) || err.message || 'unknown error') + ')');
+      return;
+    }
+    blogFormState = null;
+    renderBlog();
   }
 });
 
@@ -2295,6 +2387,20 @@ appEl.addEventListener('click', async function (e) {
     if (!confirm('Delete this category\'s landing page copy? This cannot be undone.')) return;
     await apiFetch('/console/category-content/delete', { method: 'POST', body: { slug: el.getAttribute('data-slug') } });
     renderCategories();
+  } else if (act === 'add-blog') {
+    blogFormState = 'new';
+    drawBlog();
+  } else if (act === 'edit-blog') {
+    var editBlogId = el.getAttribute('data-id');
+    blogFormState = blogCache.filter(function (p) { return p.id === editBlogId; })[0] || 'new';
+    drawBlog();
+  } else if (act === 'cancel-blog-form') {
+    blogFormState = null;
+    drawBlog();
+  } else if (act === 'delete-blog') {
+    if (!confirm('Delete this article? This cannot be undone.')) return;
+    await apiFetch('/console/blog/delete', { method: 'POST', body: { id: el.getAttribute('data-id') } });
+    renderBlog();
   } else if (act === 'review-refund-claim') {
     var claimId = el.getAttribute('data-claim-id');
     var reviewStatus = el.getAttribute('data-status');
