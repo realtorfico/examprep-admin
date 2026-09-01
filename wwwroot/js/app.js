@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -2040,6 +2040,65 @@ async function renderAlerts() {
   drawAlertsTable();
 }
 
+// ---- Testimonial submissions (moderation queue) ------------------------
+// Approving does NOT auto-publish into category_content.testimonials -- that JSON is keyed by a
+// hand-curated category slug this admin's own Categories tab already edits directly (pipe-delimited
+// "quote | author" lines). Instead each approved row here shows a "Copy line" button that copies
+// that exact format to the clipboard, so pasting it into the right category's existing textarea is
+// one step, not a retype. See the API's testimonial_submissions schema comment for the full reasoning.
+
+var testimonialsCache = [];
+var testimonialsStatusFilter = 'pending'; // '' = all; else 'pending' | 'approved' | 'rejected'
+
+function testimonialsFilterPillsHtml() {
+  var order = ['pending', 'approved', 'rejected'];
+  var counts = {};
+  testimonialsCache.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
+  var options = [['', 'All (' + testimonialsCache.length + ')']].concat(order.map(function (s) {
+    return [s, s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by status">' +
+    options.map(function (o) {
+      var active = testimonialsStatusFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-testimonials-status" data-status="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+function drawTestimonialsTable() {
+  var container = document.getElementById('testimonials-table-container');
+  if (!container) return;
+  var rows = testimonialsCache.filter(function (t) { return !testimonialsStatusFilter || t.status === testimonialsStatusFilter; });
+  if (!rows.length) { container.innerHTML = '<p class="muted">No testimonials in this filter.</p>'; return; }
+  var body = rows.map(function (t) {
+    var trackLabel = escapeHtml(t.kind || t.exam_type) + (t.stateCode ? ' (' + escapeHtml(t.stateCode) + ')' : '');
+    var actions = t.status === 'pending'
+      ? '<button class="btn-secondary btn-sm" data-act="moderate-testimonial" data-id="' + t.id + '" data-status="approved">Approve</button> ' +
+        '<button class="btn-secondary btn-sm" data-act="moderate-testimonial" data-id="' + t.id + '" data-status="rejected">Reject</button>'
+      : '<span class="badge ' + (t.status === 'approved' ? 'active' : 'revoked') + '">' + t.status + '</span>' +
+        (t.status === 'approved' ? ' <button class="btn-secondary btn-sm" data-act="copy-testimonial-line" data-quote="' + escapeHtml(t.quote) + '" data-author="' + escapeHtml(t.author) + '">Copy line</button>' : '');
+    return '<tr><td>' + escapeHtml(t.author) + '</td><td>' + trackLabel + '</td>' +
+      '<td class="visitor-referrer-cell" title="' + escapeHtml(t.quote) + '">' + escapeHtml(t.quote) + '</td>' +
+      '<td>' + (t.email ? escapeHtml(t.email) : '—') + '</td>' +
+      '<td>' + new Date(t.created_at * 1000).toLocaleDateString() + '</td>' +
+      '<td>' + actions + '</td></tr>';
+  }).join('');
+  container.innerHTML = '<div class="settings-table-scroll"><table><thead><tr><th>Author</th><th>Track</th><th>Quote</th><th>Email</th><th>Submitted</th><th></th></tr></thead>' +
+    '<tbody>' + body + '</tbody></table></div>';
+}
+
+async function renderTestimonials() {
+  appEl.innerHTML = renderTabs('testimonials') +
+    '<p class="muted page-intro-text">Real-student testimonial submissions from the site\'s #/feedback form. Approving one does NOT publish it automatically -- ' +
+    'use "Copy line" to grab the exact "quote | author" format and paste it into the right category\'s Testimonials field on the Categories tab.</p>' +
+    '<div id="testimonials-filter-wrap">' + testimonialsFilterPillsHtml() + '</div>' +
+    '<div id="testimonials-table-container"><p class="muted">Loading…</p></div>';
+  var data = await apiFetch('/console/testimonials');
+  testimonialsCache = data.items || [];
+  document.getElementById('testimonials-filter-wrap').innerHTML = testimonialsFilterPillsHtml();
+  drawTestimonialsTable();
+}
+
 // ---- Routing + delegated events --------------------------------------
 
 function route() {
@@ -2055,6 +2114,7 @@ function route() {
   else if (view === 'stalled') renderStalledBuyers();
   else if (view === 'promotions') renderPromotions();
   else if (view === 'visitors') renderVisitors();
+  else if (view === 'testimonials') renderTestimonials();
   else if (view === 'alerts') renderAlerts();
   else renderCodes();
 }
@@ -2315,6 +2375,21 @@ appEl.addEventListener('click', async function (e) {
       Array.prototype.slice.call(document.querySelectorAll('#codes-rows-body tr[data-code]')).map(function (row) { return { status: row.dataset.status }; })
     );
     updateCodesRowVisibility();
+  } else if (act === 'filter-testimonials-status') {
+    testimonialsStatusFilter = el.getAttribute('data-status');
+    document.getElementById('testimonials-filter-wrap').innerHTML = testimonialsFilterPillsHtml();
+    drawTestimonialsTable();
+  } else if (act === 'moderate-testimonial') {
+    await apiFetch('/console/testimonials/moderate', {
+      method: 'POST', body: { id: el.getAttribute('data-id'), status: el.getAttribute('data-status') },
+    });
+    renderTestimonials();
+  } else if (act === 'copy-testimonial-line') {
+    var line = el.getAttribute('data-quote') + ' | ' + el.getAttribute('data-author');
+    if (navigator.clipboard) navigator.clipboard.writeText(line).catch(function () {});
+    var originalLabel = el.textContent;
+    el.textContent = 'Copied!';
+    setTimeout(function () { el.textContent = originalLabel; }, 1500);
   } else if (act === 'save-pricing-changes') {
     var dirtyPriceRows = Array.prototype.slice.call(document.querySelectorAll('.price-input')).filter(function (inp) {
       return inp.value !== inp.dataset.original;
