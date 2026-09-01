@@ -1144,8 +1144,9 @@ async function renderStats() {
   var results = await Promise.all([
     apiFetch('/console/stats'), apiFetch('/console/resource-progress'), apiFetch('/console/exam-attempts'), apiFetch('/console/quiz-progress'),
     apiFetch('/console/funnel').catch(function () { return { stages: [] }; }),
+    apiFetch('/console/waitlist').catch(function () { return { items: [] }; }),
   ]);
-  var s = results[0], resourceProgress = results[1], examAttempts = results[2], quizProgress = results[3], funnel = results[4];
+  var s = results[0], resourceProgress = results[1], examAttempts = results[2], quizProgress = results[3], funnel = results[4], waitlist = results[5];
   if (typeof quizProgress.accuracyPassPct === 'number') accuracyPassPct = quizProgress.accuracyPassPct;
   if (typeof quizProgress.coveragePassPct === 'number') coveragePassPct = quizProgress.coveragePassPct;
   if (typeof quizProgress.leaderboardMinQuestions === 'number') leaderboardMinQuestions = quizProgress.leaderboardMinQuestions;
@@ -1179,9 +1180,21 @@ async function renderStats() {
       }).join('') + '</div></div>'
     : '';
 
+  var waitlistItems = (waitlist.items || []).slice(0, 30); // already sorted by count desc server-side
+  var waitlistHtml = waitlistItems.length
+    ? '<div class="card"><h3>Track Waitlist (demand for not-yet-live states)</h3>' +
+      '<p class="muted page-intro-text">From the "notify me" prompt on category pages. Check before/when building a new state.</p>' +
+      '<table><thead><tr><th>Kind</th><th>State</th><th>Signups</th><th>Last signup</th></tr></thead><tbody>' +
+      waitlistItems.map(function (w) {
+        return '<tr><td>' + escapeHtml(w.kind) + '</td><td>' + escapeHtml(w.state_code) + '</td><td>' + w.count + '</td>' +
+          '<td>' + new Date(w.last_signup_at * 1000).toLocaleDateString() + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+    : '';
+
   appEl.innerHTML = renderTabs('stats') +
     '<div class="card"><strong>' + s.totalUsers + '</strong> total users</div>' +
     funnelHtml +
+    waitlistHtml +
     '<div class="stats-grid">' +
     '<div class="stats-column"><h3>Codes by status</h3><table><thead><tr><th>Exam</th><th>Status</th><th>Count</th></tr></thead><tbody>' + codeRows + '</tbody></table></div>' +
     '<div class="stats-column"><h3>Accuracy by topic</h3><div id="accuracy-table-container"></div></div>' +
