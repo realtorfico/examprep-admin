@@ -1835,7 +1835,7 @@ var visitorsExcludedIpsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
 // Default view: last 7 days, at least 60 seconds on site -- cuts out same-day bounce/bot noise so
 // the table opens on something worth looking at rather than every hit ever recorded.
-var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationSec: '60', maxDurationSec: '' };
+var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationSec: '60', maxDurationSec: '', minPages: '', maxPages: '' };
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
@@ -1884,6 +1884,10 @@ function visitorsFilterBarHtml() {
     '<input type="number" id="visitors-min-duration-input" placeholder="Min" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.minDurationSec) + '">' +
     '<span class="muted">–</span>' +
     '<input type="number" id="visitors-max-duration-input" placeholder="Max" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.maxDurationSec) + '">' +
+    '<label class="muted">Pages Viewed:</label>' +
+    '<input type="number" id="visitors-min-pages-input" placeholder="Min" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.minPages) + '">' +
+    '<span class="muted">–</span>' +
+    '<input type="number" id="visitors-max-pages-input" placeholder="Max" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.maxPages) + '">' +
     '<button class="btn-secondary btn-sm" type="button" data-act="apply-visitors-filters">Apply</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="reset-visitors-filters">Reset</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="save-visitors-min-duration-default" title="Save the current Min duration value as what this tab opens to next time">Save min as default</button>' +
@@ -1917,10 +1921,14 @@ function visitorsQueryString() {
   var regionSelect = document.getElementById('visitors-region-select');
   var minInput = document.getElementById('visitors-min-duration-input');
   var maxInput = document.getElementById('visitors-max-duration-input');
+  var minPagesInput = document.getElementById('visitors-min-pages-input');
+  var maxPagesInput = document.getElementById('visitors-max-pages-input');
   visitorsFilters.country = countrySelect ? countrySelect.value : '';
   visitorsFilters.region = regionSelect ? regionSelect.value : '';
   visitorsFilters.minDurationSec = minInput ? minInput.value : '';
   visitorsFilters.maxDurationSec = maxInput ? maxInput.value : '';
+  visitorsFilters.minPages = minPagesInput ? minPagesInput.value : '';
+  visitorsFilters.maxPages = maxPagesInput ? maxPagesInput.value : '';
   if (visitorsFilters.country) {
     params.push('country=' + encodeURIComponent(visitorsFilters.country));
     if (visitorsFilters.countryOp === 'ne') params.push('countryOp=ne');
@@ -1931,6 +1939,8 @@ function visitorsQueryString() {
   }
   if (visitorsFilters.minDurationSec) params.push('minDurationSec=' + parseInt(visitorsFilters.minDurationSec, 10));
   if (visitorsFilters.maxDurationSec) params.push('maxDurationSec=' + parseInt(visitorsFilters.maxDurationSec, 10));
+  if (visitorsFilters.minPages) params.push('minPages=' + parseInt(visitorsFilters.minPages, 10));
+  if (visitorsFilters.maxPages) params.push('maxPages=' + parseInt(visitorsFilters.maxPages, 10));
   return params.length ? ('?' + params.join('&')) : '';
 }
 
