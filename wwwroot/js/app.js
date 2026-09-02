@@ -1516,6 +1516,8 @@ async function renderSettings() {
   var coveragePassPctVal = Number.isFinite(coveragePassPct) ? coveragePassPct : 50;
   var refundFailurePct = parseInt(bySetting.refund_failure_percent, 10);
   var refundFailurePctVal = Number.isFinite(refundFailurePct) ? refundFailurePct : 50;
+  var minDurationDefaultSec = parseInt(bySetting.visitor_min_duration_default_sec, 10);
+  var minDurationDefaultVal = Number.isFinite(minDurationDefaultSec) ? minDurationDefaultSec : 60;
 
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-grid">' +
@@ -1554,6 +1556,14 @@ async function renderSettings() {
         }).join('') + '</ul>'
       : '<p class="muted">No exclusions yet.</p>') +
     '</section>' +
+    '<section class="card settings-edit-group" data-group="visitor-min-duration">' +
+    '<h3>Visitors default filter</h3>' +
+    '<p class="muted page-intro-text">Default minimum time-on-site (seconds) the Visitors tab filters to when opened -- cuts out ' +
+    'same-day bounce/bot noise. Change it anytime in the tab itself; this just sets what it opens to.</p>' +
+    '<div class="settings-inline-field">' +
+    '<input type="number" step="1" min="0" class="visitor-min-duration-default-input" data-original="' + minDurationDefaultVal + '" value="' + minDurationDefaultVal + '" placeholder="60">' +
+    settingsSaveButton('save-visitor-min-duration-default', 'visitor-min-duration', 'Save') +
+    '</div></section>' +
     '<section class="card settings-edit-group" data-group="progress-colors">' +
     '<h3>Progress tab colors</h3>' +
     '<p class="muted page-intro-text">Thresholds (%) for when the student\'s headline Accuracy and Coverage numbers on the ' +
@@ -2066,7 +2076,15 @@ async function renderVisitors() {
     '<div id="visitors-filter-wrap">' + visitorsFilterBarHtml() + '</div>' +
     '<div id="visitors-table-container"><p class="muted">Loading…</p></div>';
   if (!visitorsFacetsLoaded) {
-    try { visitorsFacets = await apiFetch('/console/visitors/facets'); } catch (e) { /* best-effort -- dropdowns just stay empty */ }
+    try {
+      var facetsAndSettings = await Promise.all([
+        apiFetch('/console/visitors/facets'),
+        apiFetch('/console/settings'),
+      ]);
+      visitorsFacets = facetsAndSettings[0];
+      var minDurDefaultSetting = (facetsAndSettings[1].settings || []).filter(function (s) { return s.key === 'visitor_min_duration_default_sec'; })[0];
+      if (minDurDefaultSetting && minDurDefaultSetting.value) visitorsFilters.minDurationSec = minDurDefaultSetting.value;
+    } catch (e) { /* best-effort -- dropdowns/default just fall back to hardcoded values */ }
     visitorsFacetsLoaded = true;
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
   }
@@ -2602,6 +2620,15 @@ appEl.addEventListener('click', async function (e) {
     await apiFetch('/console/settings', {
       method: 'POST',
       body: { key: 'refund_failure_percent', value: String(refundFailurePctVal) },
+    });
+    markSettingsGroupSaved(el);
+  } else if (act === 'save-visitor-min-duration-default') {
+    var minDurationDefaultInput = document.querySelector('.visitor-min-duration-default-input');
+    var minDurationDefaultSaveVal = parseInt(minDurationDefaultInput.value, 10);
+    if (!Number.isFinite(minDurationDefaultSaveVal) || minDurationDefaultSaveVal < 0) { alert('Enter a valid number of seconds.'); return; }
+    await apiFetch('/console/settings', {
+      method: 'POST',
+      body: { key: 'visitor_min_duration_default_sec', value: String(minDurationDefaultSaveVal) },
     });
     markSettingsGroupSaved(el);
   } else if (act === 'sort-visitors') {
