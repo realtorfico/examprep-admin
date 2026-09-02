@@ -1484,93 +1484,31 @@ async function renderTracks() {
   updatePricingRowVisibility();
 }
 
-function parseCsvSetting(settingsResp, key) {
-  var row = settingsResp.settings.filter(function (s) { return s.key === key; })[0];
-  return (row ? row.value : '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-}
-
 async function renderSettings() {
   appEl.innerHTML = renderTabs('settings') + '<p>Loading…</p>';
-  var results = await Promise.all([
-    apiFetch('/console/point-rules'),
-    apiFetch('/console/settings'),
-  ]);
-  var pointRulesData = results[0], settingsData = results[1];
+  var settingsData = await apiFetch('/console/settings');
 
   var bySetting = {};
   settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
 
-  var pointRuleRows = pointRulesData.pointRules.map(function (r) {
-    var activeOriginal = r.active ? 'true' : 'false';
-    return '<tr data-row-key="' + r.task_key + '"><td>' + r.label + '</td><td>' +
-      '<input type="number" min="0" class="rule-points-input" data-task="' + r.task_key + '" data-original="' + r.points + '" value="' + r.points + '" placeholder="points">' +
-      '</td><td><label class="rule-active-label"><input type="checkbox" class="rule-active-input" data-task="' + r.task_key + '" data-original="' + activeOriginal + '"' +
-      (r.active ? ' checked' : '') + '> Active</label></td></tr>';
-  }).join('');
-  var minChargeCents = parseInt(bySetting.min_paypal_charge_cents, 10);
-  var minChargeDollars = Number.isFinite(minChargeCents) ? (minChargeCents / 100).toFixed(2) : '1.00';
-  var visitorExcludedIps = (bySetting.visitor_excluded_ips || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   var accuracyPassPct = parseInt(bySetting.progress_accuracy_pass_pct, 10);
   var accuracyPassPctVal = Number.isFinite(accuracyPassPct) ? accuracyPassPct : 80;
   var coveragePassPct = parseInt(bySetting.progress_coverage_pass_pct, 10);
   var coveragePassPctVal = Number.isFinite(coveragePassPct) ? coveragePassPct : 50;
-  var refundFailurePct = parseInt(bySetting.refund_failure_percent, 10);
-  var refundFailurePctVal = Number.isFinite(refundFailurePct) ? refundFailurePct : 50;
 
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-grid">' +
 
-    '<section class="card settings-edit-group" data-group="point-rules">' +
-    '<div class="settings-edit-toolbar">' +
-    '<div><h3>Point rules</h3><p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read ' +
-    'directly as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p></div>' +
-    settingsSaveButton('save-point-rules-changes', 'point-rules', 'Save changes') +
-    '</div>' +
-    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead><tr><th>Task</th><th>Points</th><th>Active</th></tr></thead>' +
-    '<tbody>' + pointRuleRows + '</tbody></table></div>' +
-    '</section>' +
-    '<section class="card settings-edit-group" data-group="min-charge">' +
-    '<h3>Points discount floor</h3>' +
-    '<p class="muted page-intro-text">A points discount can never leave less than this payable through the card/wallet processor ' +
-    '(points fully covering a course still redeem free with zero cash, no charge involved, so this doesn\'t affect that).</p>' +
-    '<div class="settings-inline-field">' +
-    '<input type="number" step="0.01" min="0" class="min-charge-input" data-original="' + minChargeDollars + '" value="' + minChargeDollars + '" placeholder="1.00">' +
-    settingsSaveButton('save-min-charge', 'min-charge', 'Save') +
-    '</div></section>' +
-    '<section class="card settings-edit-group" data-group="visitor-exclusions">' +
-    '<h3>Visitor exclusions</h3>' +
-    '<p class="muted page-intro-text">IP addresses excluded from the Visitors tab entirely (e.g. your own office/home IP) -- ' +
-    'excluded traffic is never even recorded, and this also retroactively hides anything already logged from that IP. IP-based ' +
-    'exclusion breaks if your IP changes (new wifi, mobile data, VPN) -- for an exclusion that survives that, visit the public site ' +
-    'with <code>?pxq_exclude=1</code> added to the URL once (e.g. <code>https://yoursite.com/?pxq_exclude=1</code>) -- that browser ' +
-    'stops sending any visit data permanently, no IP list needed. Visit again with <code>?pxq_exclude=0</code> to re-enable.</p>' +
-    '<div class="settings-inline-field">' +
-    '<input type="text" id="new-visitor-exclusion-input" placeholder="e.g. 203.0.113.42">' +
-    '<button class="btn-secondary btn-sm" type="button" data-act="add-visitor-exclusion">+ Add</button>' +
-    '</div>' +
-    (visitorExcludedIps.length
-      ? '<ul class="visitor-exclusion-list">' + visitorExcludedIps.map(function (ip) {
-          return '<li>' + escapeHtml(ip) + ' <button class="btn-secondary btn-sm" type="button" data-act="remove-visitor-exclusion" data-ip="' + escapeHtml(ip) + '">Remove</button></li>';
-        }).join('') + '</ul>'
-      : '<p class="muted">No exclusions yet.</p>') +
-    '</section>' +
     '<section class="card settings-edit-group" data-group="progress-colors">' +
     '<h3>Progress tab colors</h3>' +
     '<p class="muted page-intro-text">Thresholds (%) for when the student\'s headline Accuracy and Coverage numbers on the ' +
-    'Progress tab show green (at/above) vs. red (below).</p>' +
+    'Progress tab show green (at/above) vs. red (below). This one stays here since it configures the public site\'s student ' +
+    'Progress page, which has no admin-side tab of its own.</p>' +
     '<div class="settings-inline-field"><label class="price-row-label">Accuracy turns green at/above</label>' +
     '<input type="number" step="1" min="0" max="100" class="accuracy-pass-pct-input" data-original="' + accuracyPassPctVal + '" value="' + accuracyPassPctVal + '" placeholder="80"></div>' +
     '<div class="settings-inline-field"><label class="price-row-label">Coverage turns green at/above</label>' +
     '<input type="number" step="1" min="0" max="100" class="coverage-pass-pct-input" data-original="' + coveragePassPctVal + '" value="' + coveragePassPctVal + '" placeholder="50">' +
     settingsSaveButton('save-progress-colors', 'progress-colors', 'Save') +
-    '</div></section>' +
-    '<section class="card settings-edit-group" data-group="refund-pct">' +
-    '<h3>Refund guarantee</h3>' +
-    '<p class="muted page-intro-text">Percent of the purchase price refunded on an approved exam-failure refund claim. ' +
-    'Shown live on the public site\'s footer, checkout, and refund-request pages.</p>' +
-    '<div class="settings-inline-field">' +
-    '<input type="number" step="1" min="0" max="100" class="refund-failure-pct-input" data-original="' + refundFailurePctVal + '" value="' + refundFailurePctVal + '" placeholder="50">' +
-    settingsSaveButton('save-refund-failure-pct', 'refund-pct', 'Save') +
     '</div></section>' +
 
     '</div>';
@@ -1715,9 +1653,25 @@ async function renderPoints() {
   var results = await Promise.all([
     apiFetch('/console/accounts'),
     apiFetch('/console/referrals'),
+    apiFetch('/console/point-rules'),
+    apiFetch('/console/settings'),
   ]);
   pointsAccountsCache = results[0].accounts;
   pointsReferralsCache = results[1].referrals;
+  var pointRulesData = results[2], settingsData = results[3];
+
+  var bySetting = {};
+  settingsData.settings.forEach(function (s) { bySetting[s.key] = s.value; });
+  var minChargeCents = parseInt(bySetting.min_paypal_charge_cents, 10);
+  var minChargeDollars = Number.isFinite(minChargeCents) ? (minChargeCents / 100).toFixed(2) : '1.00';
+
+  var pointRuleRows = pointRulesData.pointRules.map(function (r) {
+    var activeOriginal = r.active ? 'true' : 'false';
+    return '<tr data-row-key="' + r.task_key + '"><td>' + r.label + '</td><td>' +
+      '<input type="number" min="0" class="rule-points-input" data-task="' + r.task_key + '" data-original="' + r.points + '" value="' + r.points + '" placeholder="points">' +
+      '</td><td><label class="rule-active-label"><input type="checkbox" class="rule-active-input" data-task="' + r.task_key + '" data-original="' + activeOriginal + '"' +
+      (r.active ? ' checked' : '') + '> Active</label></td></tr>';
+  }).join('');
 
   var accountsEmpty = pointsAccountsCache.length ? '' : '<p class="muted">No referral accounts yet.</p>';
   var referralsEmpty = pointsReferralsCache.length ? '' : '<p class="muted">No referrals yet.</p>';
@@ -1733,7 +1687,24 @@ async function renderPoints() {
     '<h3>Accounts</h3>' + accountsEmpty +
     '<div id="accounts-table-container"></div>' +
     '<h3>Referral log</h3>' + referralsEmpty +
-    '<div id="referrals-table-container"></div>';
+    '<div id="referrals-table-container"></div>' +
+    '<section class="card settings-edit-group" data-group="point-rules">' +
+    '<div class="settings-edit-toolbar">' +
+    '<div><h3>Point rules</h3><p class="muted page-intro-text">How many points each referral task awards (1 point = 1 cent, so these read ' +
+    'directly as cents toward a free course). Uncheck Active to stop awarding it without losing history.</p></div>' +
+    settingsSaveButton('save-point-rules-changes', 'point-rules', 'Save changes') +
+    '</div>' +
+    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead><tr><th>Task</th><th>Points</th><th>Active</th></tr></thead>' +
+    '<tbody>' + pointRuleRows + '</tbody></table></div>' +
+    '</section>' +
+    '<section class="card settings-edit-group" data-group="min-charge">' +
+    '<h3>Points discount floor</h3>' +
+    '<p class="muted page-intro-text">A points discount can never leave less than this payable through the card/wallet processor ' +
+    '(points fully covering a course still redeem free with zero cash, no charge involved, so this doesn\'t affect that).</p>' +
+    '<div class="settings-inline-field">' +
+    '<input type="number" step="0.01" min="0" class="min-charge-input" data-original="' + minChargeDollars + '" value="' + minChargeDollars + '" placeholder="1.00">' +
+    settingsSaveButton('save-min-charge', 'min-charge', 'Save') +
+    '</div></section>';
   drawAccountsTable();
   drawReferralsTable();
 }
@@ -1742,7 +1713,15 @@ async function renderPoints() {
 
 async function renderRefunds() {
   appEl.innerHTML = renderTabs('refunds') + '<p>Loading…</p>';
-  var data = await apiFetch('/console/refund-claims');
+  var results = await Promise.all([
+    apiFetch('/console/refund-claims'),
+    apiFetch('/console/settings'),
+  ]);
+  var data = results[0];
+  var bySetting = {};
+  results[1].settings.forEach(function (s) { bySetting[s.key] = s.value; });
+  var refundFailurePct = parseInt(bySetting.refund_failure_percent, 10);
+  var refundFailurePctVal = Number.isFinite(refundFailurePct) ? refundFailurePct : 50;
   var claimTypeLabel = { unconditional_7day: '7-Day', exam_failure_50pct: 'Exam Failure 50%' };
   var statusBadgeClass = { pending: '', approved: '', denied: 'revoked', refunded: 'redeemed' };
   var processorLabel = function (note) {
@@ -1787,7 +1766,15 @@ async function renderRefunds() {
     (data.claims.length
       ? '<table><thead><tr><th>Code</th><th>Email</th><th>Type</th><th>Amount</th><th>Processor</th><th>Status</th><th>Details</th><th>Created</th><th>Actions</th></tr></thead>' +
         '<tbody>' + rows + '</tbody></table>'
-      : '');
+      : '') +
+    '<section class="card settings-edit-group" data-group="refund-pct">' +
+    '<h3>Refund guarantee</h3>' +
+    '<p class="muted page-intro-text">Percent of the purchase price refunded on an approved exam-failure refund claim. ' +
+    'Shown live on the public site\'s footer, checkout, and refund-request pages.</p>' +
+    '<div class="settings-inline-field">' +
+    '<input type="number" step="1" min="0" max="100" class="refund-failure-pct-input" data-original="' + refundFailurePctVal + '" value="' + refundFailurePctVal + '" placeholder="50">' +
+    settingsSaveButton('save-refund-failure-pct', 'refund-pct', 'Save') +
+    '</div></section>';
 }
 
 // ---- Stalled buyers (re-engagement) ------------------------------------
@@ -1844,6 +1831,7 @@ async function renderStalledBuyers() {
 // ---- Visitors (site_visits, populated by the public site's tracking beacon) -----------
 
 var visitorsCache = [];
+var visitorsExcludedIpsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
 // Default view: last 7 days, at least 60 seconds on site -- cuts out same-day bounce/bot noise so
 // the table opens on something worth looking at rather than every hit ever recorded.
@@ -2058,14 +2046,40 @@ function closeVisitorDetail() {
   if (backdrop) backdrop.remove();
 }
 
+function visitorExclusionsCardHtml() {
+  return '<section class="card settings-edit-group" data-group="visitor-exclusions">' +
+    '<h3>Visitor exclusions</h3>' +
+    '<p class="muted page-intro-text">IP addresses excluded from this tab entirely (e.g. your own office/home IP) -- ' +
+    'excluded traffic is never even recorded, and this also retroactively hides anything already logged from that IP. IP-based ' +
+    'exclusion breaks if your IP changes (new wifi, mobile data, VPN) -- for an exclusion that survives that, visit the public site ' +
+    'with <code>?pxq_exclude=1</code> added to the URL once (e.g. <code>https://yoursite.com/?pxq_exclude=1</code>) -- that browser ' +
+    'stops sending any visit data permanently, no IP list needed. Visit again with <code>?pxq_exclude=0</code> to re-enable.</p>' +
+    '<div class="settings-inline-field">' +
+    '<input type="text" id="new-visitor-exclusion-input" placeholder="e.g. 203.0.113.42">' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="add-visitor-exclusion">+ Add</button>' +
+    '</div>' +
+    (visitorsExcludedIpsCache.length
+      ? '<ul class="visitor-exclusion-list">' + visitorsExcludedIpsCache.map(function (ip) {
+          return '<li>' + escapeHtml(ip) + ' <button class="btn-secondary btn-sm" type="button" data-act="remove-visitor-exclusion" data-ip="' + escapeHtml(ip) + '">Remove</button></li>';
+        }).join('') + '</ul>'
+      : '<p class="muted">No exclusions yet.</p>') +
+    '</section>';
+}
+
+function drawVisitorExclusionsCard() {
+  var wrap = document.getElementById('visitors-exclusions-wrap');
+  if (wrap) wrap.innerHTML = visitorExclusionsCardHtml();
+}
+
 async function renderVisitors() {
   appEl.innerHTML = renderTabs('visitors') +
     '<p class="muted page-intro-text">Every recorded browser session on the public site, newest activity first. Click any column ' +
     'header to sort. Hover a truncated cell (Referrer, Pages Viewed) for the full value, or click Details for the full picture ' +
-    '(visitor/session IDs, coordinates, UTM source/medium/campaign, and the full page-view journey). Add IPs to the exclusion ' +
-    'list in Settings to keep your own traffic out of this table.</p>' +
+    '(visitor/session IDs, coordinates, UTM source/medium/campaign, and the full page-view journey). Add IPs below to keep your ' +
+    'own traffic out of this table.</p>' +
     '<div id="visitors-filter-wrap">' + visitorsFilterBarHtml() + '</div>' +
-    '<div id="visitors-table-container"><p class="muted">Loading…</p></div>';
+    '<div id="visitors-table-container"><p class="muted">Loading…</p></div>' +
+    '<div id="visitors-exclusions-wrap"></div>';
   if (!visitorsFacetsLoaded) {
     try {
       var facetsAndSettings = await Promise.all([
@@ -2073,12 +2087,16 @@ async function renderVisitors() {
         apiFetch('/console/settings'),
       ]);
       visitorsFacets = facetsAndSettings[0];
-      var minDurDefaultSetting = (facetsAndSettings[1].settings || []).filter(function (s) { return s.key === 'visitor_min_duration_default_sec'; })[0];
+      var settingsRows = facetsAndSettings[1].settings || [];
+      var minDurDefaultSetting = settingsRows.filter(function (s) { return s.key === 'visitor_min_duration_default_sec'; })[0];
       if (minDurDefaultSetting && minDurDefaultSetting.value) visitorsFilters.minDurationSec = minDurDefaultSetting.value;
-    } catch (e) { /* best-effort -- dropdowns/default just fall back to hardcoded values */ }
+      var exclusionsSetting = settingsRows.filter(function (s) { return s.key === 'visitor_excluded_ips'; })[0];
+      visitorsExcludedIpsCache = (exclusionsSetting ? exclusionsSetting.value : '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    } catch (e) { /* best-effort -- dropdowns/default/exclusions just fall back to empty/hardcoded */ }
     visitorsFacetsLoaded = true;
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
   }
+  drawVisitorExclusionsCard();
   await loadVisitors();
 }
 
@@ -2575,17 +2593,14 @@ appEl.addEventListener('click', async function (e) {
     var newExclusionInput = document.getElementById('new-visitor-exclusion-input');
     var newIp = newExclusionInput.value.trim();
     if (!newIp) { alert('Enter an IP address.'); return; }
-    var currentSettings = await apiFetch('/console/settings');
-    var list = parseCsvSetting(currentSettings, 'visitor_excluded_ips');
-    if (list.indexOf(newIp) === -1) list.push(newIp);
-    await apiFetch('/console/settings', { method: 'POST', body: { key: 'visitor_excluded_ips', value: list.join(',') } });
-    renderSettings();
+    if (visitorsExcludedIpsCache.indexOf(newIp) === -1) visitorsExcludedIpsCache.push(newIp);
+    await apiFetch('/console/settings', { method: 'POST', body: { key: 'visitor_excluded_ips', value: visitorsExcludedIpsCache.join(',') } });
+    drawVisitorExclusionsCard();
   } else if (act === 'remove-visitor-exclusion') {
     var removeIp = el.getAttribute('data-ip');
-    var currentSettings2 = await apiFetch('/console/settings');
-    var list2 = parseCsvSetting(currentSettings2, 'visitor_excluded_ips').filter(function (ip) { return ip !== removeIp; });
-    await apiFetch('/console/settings', { method: 'POST', body: { key: 'visitor_excluded_ips', value: list2.join(',') } });
-    renderSettings();
+    visitorsExcludedIpsCache = visitorsExcludedIpsCache.filter(function (ip) { return ip !== removeIp; });
+    await apiFetch('/console/settings', { method: 'POST', body: { key: 'visitor_excluded_ips', value: visitorsExcludedIpsCache.join(',') } });
+    drawVisitorExclusionsCard();
   } else if (act === 'save-progress-colors') {
     var accuracyPassPctInput = document.querySelector('.accuracy-pass-pct-input');
     var coveragePassPctInput = document.querySelector('.coverage-pass-pct-input');
