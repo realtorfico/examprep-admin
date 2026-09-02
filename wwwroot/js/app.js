@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -2217,6 +2217,71 @@ async function renderTestimonials() {
   drawTestimonialsTable();
 }
 
+// ---- Affiliate partners (business, e.g. pre-licensing course providers) ---
+// Deliberately separate from the customer-facing referral/points system (see examprep-api's
+// schema.sql comment on affiliate_partners) -- a business partner relationship is a real
+// commission tracked here for a MANUAL payout, not points redeemable for a course. This tab is
+// where that manual payout math actually gets read off (conversions/revenue/commission owed per
+// partner) -- actually sending a partner their money is a real-world step outside this app.
+
+var affiliatePartnersCache = [];
+var affiliatePartnerFormOpen = false;
+
+function affiliatePartnerFormHtml() {
+  if (!affiliatePartnerFormOpen) return '';
+  return '<form class="card" data-act="save-affiliate-partner">' +
+    '<h3>Add affiliate partner</h3>' +
+    '<label>Partner ID (used in the tracking link, e.g. "kaplan-re" — letters/numbers/hyphens only)' +
+    '<input type="text" name="id" required placeholder="kaplan-re"></label>' +
+    '<label>Partner name<input type="text" name="name" required placeholder="Kaplan Real Estate Education"></label>' +
+    '<label>Contact email (optional)<input type="email" name="contactEmail"></label>' +
+    '<label>Commission % of revenue (optional — leave blank for tracking only, no commission arrangement)' +
+    '<input type="number" name="commissionPercent" min="0" max="100" step="1"></label>' +
+    '<label>Notes (optional)<textarea name="notes" rows="2"></textarea></label>' +
+    '<div class="progress-reset-actions">' +
+    '<button class="btn-primary" type="submit">Save partner</button> ' +
+    '<button class="btn-secondary" type="button" data-act="cancel-affiliate-partner-form">Cancel</button>' +
+    '</div></form>';
+}
+
+function drawAffiliatePartnersTable() {
+  var container = document.getElementById('affiliate-partners-table-container');
+  if (!container) return;
+  if (!affiliatePartnersCache.length) { container.innerHTML = '<p class="muted">No affiliate partners yet.</p>'; return; }
+  var body = affiliatePartnersCache.map(function (p) {
+    var trackingLink = 'https://passexamhq.com/?aff=' + encodeURIComponent(p.id);
+    return '<tr>' +
+      '<td>' + escapeHtml(p.name) + (p.notes ? '<br><span class="muted">' + escapeHtml(p.notes) + '</span>' : '') + '</td>' +
+      '<td>' + (p.contactEmail ? escapeHtml(p.contactEmail) : '—') + '</td>' +
+      '<td>' + (p.commissionPercent != null ? p.commissionPercent + '%' : 'tracking only') + '</td>' +
+      '<td>' + p.conversions + '</td>' +
+      '<td>$' + (p.revenueCents / 100).toFixed(2) + '</td>' +
+      '<td>' + (p.commissionCents != null ? '$' + (p.commissionCents / 100).toFixed(2) : '—') + '</td>' +
+      '<td><span class="badge ' + (p.active ? 'active' : 'revoked') + '">' + (p.active ? 'active' : 'inactive') + '</span></td>' +
+      '<td>' +
+      '<button class="btn-secondary btn-sm" type="button" data-act="copy-affiliate-link" data-link="' + escapeHtml(trackingLink) + '">Copy link</button> ' +
+      '<button class="btn-secondary btn-sm" type="button" data-act="toggle-affiliate-partner-active" data-id="' + escapeHtml(p.id) + '" data-active="' + (p.active ? '0' : '1') + '">' +
+      (p.active ? 'Deactivate' : 'Activate') + '</button>' +
+      '</td></tr>';
+  }).join('');
+  container.innerHTML = '<div class="settings-table-scroll"><table><thead><tr><th>Partner</th><th>Contact</th><th>Commission</th>' +
+    '<th>Conversions</th><th>Revenue</th><th>Commission Owed</th><th>Status</th><th></th></tr></thead>' +
+    '<tbody>' + body + '</tbody></table></div>';
+}
+
+async function renderAffiliates() {
+  appEl.innerHTML = renderTabs('affiliates') +
+    '<p class="muted page-intro-text">Business affiliate partners (e.g. pre-licensing course providers) — separate from the ' +
+    'customer referral/points system. A partner\'s tracking link (?aff=&lt;id&gt;) attributes a completed purchase to them; ' +
+    'commission owed is tracked here for you to pay out manually, not sent automatically.</p>' +
+    '<button class="btn-primary btn-sm" type="button" data-act="show-affiliate-partner-form">+ Add partner</button>' +
+    '<div id="affiliate-partner-form-wrap">' + affiliatePartnerFormHtml() + '</div>' +
+    '<div id="affiliate-partners-table-container"><p class="muted">Loading…</p></div>';
+  var data = await apiFetch('/console/affiliate-partners');
+  affiliatePartnersCache = data.items || [];
+  drawAffiliatePartnersTable();
+}
+
 // ---- Routing + delegated events --------------------------------------
 
 function route() {
@@ -2234,6 +2299,7 @@ function route() {
   else if (view === 'promotions') renderPromotions();
   else if (view === 'visitors') renderVisitors();
   else if (view === 'testimonials') renderTestimonials();
+  else if (view === 'affiliates') renderAffiliates();
   else if (view === 'alerts') renderAlerts();
   else renderCodes();
 }
@@ -2355,6 +2421,26 @@ appEl.addEventListener('submit', async function (e) {
     }
     blogFormState = null;
     renderBlog();
+  } else if (act === 'save-affiliate-partner') {
+    e.preventDefault();
+    var apf = e.target;
+    try {
+      await apiFetch('/console/affiliate-partners/create', {
+        method: 'POST',
+        body: {
+          id: apf.id.value.trim(),
+          name: apf.name.value.trim(),
+          contactEmail: apf.contactEmail.value.trim() || undefined,
+          commissionPercent: apf.commissionPercent.value ? parseInt(apf.commissionPercent.value, 10) : undefined,
+          notes: apf.notes.value.trim() || undefined,
+        },
+      });
+    } catch (err) {
+      alert('Could not save this partner. (' + ((err.data && err.data.error) || err.message || 'unknown error') + ')');
+      return;
+    }
+    affiliatePartnerFormOpen = false;
+    renderAffiliates();
   }
 });
 
@@ -2535,6 +2621,23 @@ appEl.addEventListener('click', async function (e) {
     testimonialsStatusFilter = el.getAttribute('data-status');
     document.getElementById('testimonials-filter-wrap').innerHTML = testimonialsFilterPillsHtml();
     drawTestimonialsTable();
+  } else if (act === 'show-affiliate-partner-form') {
+    affiliatePartnerFormOpen = true;
+    document.getElementById('affiliate-partner-form-wrap').innerHTML = affiliatePartnerFormHtml();
+  } else if (act === 'cancel-affiliate-partner-form') {
+    affiliatePartnerFormOpen = false;
+    document.getElementById('affiliate-partner-form-wrap').innerHTML = '';
+  } else if (act === 'copy-affiliate-link') {
+    var affLink = el.getAttribute('data-link');
+    if (navigator.clipboard) navigator.clipboard.writeText(affLink).catch(function () {});
+    var affLinkLabel = el.textContent;
+    el.textContent = 'Copied!';
+    setTimeout(function () { el.textContent = affLinkLabel; }, 1500);
+  } else if (act === 'toggle-affiliate-partner-active') {
+    await apiFetch('/console/affiliate-partners/active', {
+      method: 'POST', body: { id: el.getAttribute('data-id'), active: el.getAttribute('data-active') === '1' },
+    });
+    renderAffiliates();
   } else if (act === 'moderate-testimonial') {
     await apiFetch('/console/testimonials/moderate', {
       method: 'POST', body: { id: el.getAttribute('data-id'), status: el.getAttribute('data-status') },
