@@ -1845,9 +1845,9 @@ async function renderStalledBuyers() {
 
 var visitorsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
-// Default view: last 7 days, at least 1 minute on site -- cuts out same-day bounce/bot noise so
+// Default view: last 7 days, at least 60 seconds on site -- cuts out same-day bounce/bot noise so
 // the table opens on something worth looking at rather than every hit ever recorded.
-var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationMin: '1', maxDurationMin: '' };
+var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationSec: '60', maxDurationSec: '' };
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
@@ -1892,10 +1892,10 @@ function visitorsFilterBarHtml() {
     '<select id="visitors-country-select">' + countryOptions + '</select>' +
     '<label class="muted">Region</label>' + regionOpToggle +
     '<select id="visitors-region-select">' + regionOptions + '</select>' +
-    '<label class="muted">Duration (min):</label>' +
-    '<input type="number" id="visitors-min-duration-input" placeholder="Min" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.minDurationMin) + '">' +
+    '<label class="muted">Duration (sec):</label>' +
+    '<input type="number" id="visitors-min-duration-input" placeholder="Min" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.minDurationSec) + '">' +
     '<span class="muted">–</span>' +
-    '<input type="number" id="visitors-max-duration-input" placeholder="Max" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.maxDurationMin) + '">' +
+    '<input type="number" id="visitors-max-duration-input" placeholder="Max" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.maxDurationSec) + '">' +
     '<button class="btn-secondary btn-sm" type="button" data-act="apply-visitors-filters">Apply</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="reset-visitors-filters">Reset</button>' +
     '</div>';
@@ -1930,8 +1930,8 @@ function visitorsQueryString() {
   var maxInput = document.getElementById('visitors-max-duration-input');
   visitorsFilters.country = countrySelect ? countrySelect.value : '';
   visitorsFilters.region = regionSelect ? regionSelect.value : '';
-  visitorsFilters.minDurationMin = minInput ? minInput.value : '';
-  visitorsFilters.maxDurationMin = maxInput ? maxInput.value : '';
+  visitorsFilters.minDurationSec = minInput ? minInput.value : '';
+  visitorsFilters.maxDurationSec = maxInput ? maxInput.value : '';
   if (visitorsFilters.country) {
     params.push('country=' + encodeURIComponent(visitorsFilters.country));
     if (visitorsFilters.countryOp === 'ne') params.push('countryOp=ne');
@@ -1940,8 +1940,8 @@ function visitorsQueryString() {
     params.push('region=' + encodeURIComponent(visitorsFilters.region));
     if (visitorsFilters.regionOp === 'ne') params.push('regionOp=ne');
   }
-  if (visitorsFilters.minDurationMin) params.push('minDurationSec=' + (parseInt(visitorsFilters.minDurationMin, 10) * 60));
-  if (visitorsFilters.maxDurationMin) params.push('maxDurationSec=' + (parseInt(visitorsFilters.maxDurationMin, 10) * 60));
+  if (visitorsFilters.minDurationSec) params.push('minDurationSec=' + parseInt(visitorsFilters.minDurationSec, 10));
+  if (visitorsFilters.maxDurationSec) params.push('maxDurationSec=' + parseInt(visitorsFilters.maxDurationSec, 10));
   return params.length ? ('?' + params.join('&')) : '';
 }
 
