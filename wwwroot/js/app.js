@@ -1516,8 +1516,6 @@ async function renderSettings() {
   var coveragePassPctVal = Number.isFinite(coveragePassPct) ? coveragePassPct : 50;
   var refundFailurePct = parseInt(bySetting.refund_failure_percent, 10);
   var refundFailurePctVal = Number.isFinite(refundFailurePct) ? refundFailurePct : 50;
-  var minDurationDefaultSec = parseInt(bySetting.visitor_min_duration_default_sec, 10);
-  var minDurationDefaultVal = Number.isFinite(minDurationDefaultSec) ? minDurationDefaultSec : 60;
 
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-grid">' +
@@ -1556,14 +1554,6 @@ async function renderSettings() {
         }).join('') + '</ul>'
       : '<p class="muted">No exclusions yet.</p>') +
     '</section>' +
-    '<section class="card settings-edit-group" data-group="visitor-min-duration">' +
-    '<h3>Visitors default filter</h3>' +
-    '<p class="muted page-intro-text">Default minimum time-on-site (seconds) the Visitors tab filters to when opened -- cuts out ' +
-    'same-day bounce/bot noise. Change it anytime in the tab itself; this just sets what it opens to.</p>' +
-    '<div class="settings-inline-field">' +
-    '<input type="number" step="1" min="0" class="visitor-min-duration-default-input" data-original="' + minDurationDefaultVal + '" value="' + minDurationDefaultVal + '" placeholder="60">' +
-    settingsSaveButton('save-visitor-min-duration-default', 'visitor-min-duration', 'Save') +
-    '</div></section>' +
     '<section class="card settings-edit-group" data-group="progress-colors">' +
     '<h3>Progress tab colors</h3>' +
     '<p class="muted page-intro-text">Thresholds (%) for when the student\'s headline Accuracy and Coverage numbers on the ' +
@@ -1908,6 +1898,7 @@ function visitorsFilterBarHtml() {
     '<input type="number" id="visitors-max-duration-input" placeholder="Max" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.maxDurationSec) + '">' +
     '<button class="btn-secondary btn-sm" type="button" data-act="apply-visitors-filters">Apply</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="reset-visitors-filters">Reset</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="save-visitors-min-duration-default" title="Save the current Min duration value as what this tab opens to next time">Save min as default</button>' +
     '</div>';
 }
 
@@ -2622,15 +2613,6 @@ appEl.addEventListener('click', async function (e) {
       body: { key: 'refund_failure_percent', value: String(refundFailurePctVal) },
     });
     markSettingsGroupSaved(el);
-  } else if (act === 'save-visitor-min-duration-default') {
-    var minDurationDefaultInput = document.querySelector('.visitor-min-duration-default-input');
-    var minDurationDefaultSaveVal = parseInt(minDurationDefaultInput.value, 10);
-    if (!Number.isFinite(minDurationDefaultSaveVal) || minDurationDefaultSaveVal < 0) { alert('Enter a valid number of seconds.'); return; }
-    await apiFetch('/console/settings', {
-      method: 'POST',
-      body: { key: 'visitor_min_duration_default_sec', value: String(minDurationDefaultSaveVal) },
-    });
-    markSettingsGroupSaved(el);
   } else if (act === 'sort-visitors') {
     var visitorsSortKey = el.getAttribute('data-key');
     if (visitorsSort.key === visitorsSortKey) visitorsSort.dir *= -1;
@@ -2644,6 +2626,18 @@ appEl.addEventListener('click', async function (e) {
     if (visitorsFilters.preset !== 'custom') await loadVisitors(); // custom needs the date inputs filled in first
   } else if (act === 'apply-visitors-filters') {
     await loadVisitors();
+  } else if (act === 'save-visitors-min-duration-default') {
+    var minDurationDefaultInput = document.getElementById('visitors-min-duration-input');
+    var minDurationDefaultSaveVal = parseInt(minDurationDefaultInput.value, 10);
+    if (!Number.isFinite(minDurationDefaultSaveVal) || minDurationDefaultSaveVal < 0) { alert('Enter a valid number of seconds in Min duration first.'); return; }
+    await apiFetch('/console/settings', {
+      method: 'POST',
+      body: { key: 'visitor_min_duration_default_sec', value: String(minDurationDefaultSaveVal) },
+    });
+    var savedLabel = el.textContent;
+    el.textContent = 'Saved ✓';
+    el.disabled = true;
+    setTimeout(function () { el.textContent = savedLabel; el.disabled = false; }, 1600);
   } else if (act === 'toggle-visitors-country-op') {
     visitorsFilters.countryOp = visitorsFilters.countryOp === 'ne' ? 'eq' : 'ne';
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
