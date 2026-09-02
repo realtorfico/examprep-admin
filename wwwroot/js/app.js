@@ -1463,7 +1463,8 @@ async function renderTracks() {
       '<td class="muted settings-readonly-cell">' + bankPctLabel + '</td>' +
       '<td' + mockExamCellAttrs + ' data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
       '<td' + mockExamCellAttrs + '>' + examConfig.passPercent + '%</td>' +
-      '<td' + mockExamCellAttrs + '>' + (examConfig.minCorrect != null ? examConfig.minCorrect : '—') + '</td></tr>';
+      '<td' + mockExamCellAttrs + '>' + (examConfig.minCorrect != null ? examConfig.minCorrect : '—') + '</td>' +
+      '<td><button class="btn-secondary btn-sm" type="button" data-act="edit-track-mechanics" data-exam="' + examType + '">Edit</button></td></tr>';
   }).join('');
 
   appEl.innerHTML = renderTabs('tracks') +
@@ -1475,13 +1476,55 @@ async function renderTracks() {
     '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks (e.g. by state)…">' +
-    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing') + '</thead>' +
+    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing').replace('</tr>', '<th></th></tr>') + '</thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
     '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
     '</section>';
   pricingFilterQuery = '';
   applyPricingSortOrder();
   updatePricingRowVisibility();
+}
+
+// ---- Track mechanics edit (feeds the public /changelog transparency page) -------------
+// A correction here (question count/duration/pass_percent/min_correct) is real, dated, and
+// requires a reason -- see track_registry_changelog in schema.sql. Deliberately a separate small
+// modal rather than inline-editable cells in the big pricing/tracks table above: those mechanics
+// cells are read-only display today (this table's own comment says so), and retrofitting live
+// inline editing into that already-large, sortable/filterable table risked breaking its existing
+// pricing-save workflow for a feature that only needs occasional, deliberate corrections anyway.
+function trackMechanicsEditModalHtml(examType) {
+  var registryRow = TRACK_REGISTRY_FULL[examType] || {};
+  var label = (EXAM_TYPES.filter(function (t) { return t[0] === examType; })[0] || [])[1] || examType;
+  return '<div class="code-detail-modal">' +
+    '<div class="code-detail-modal-header"><h3>Edit exam mechanics — ' + escapeHtml(label) + '</h3>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="close-track-mechanics-edit">Close</button></div>' +
+    '<p class="muted page-intro-text">Every change here is logged, with your reason, to the public /changelog page — ' +
+    'a real trust signal, not a quiet edit. Only change a field if you have a real, sourced correction.</p>' +
+    '<form data-act="save-track-mechanics" data-exam="' + examType + '">' +
+    '<label>Question count<input type="number" name="questionCount" min="1" value="' + (registryRow.questionCount != null ? registryRow.questionCount : '') + '"></label>' +
+    '<label>Duration (minutes)<input type="number" name="durationMin" min="1" value="' + (registryRow.durationSec != null ? Math.round(registryRow.durationSec / 60) : '') + '"></label>' +
+    '<label>Pass percent<input type="number" name="passPercent" min="1" max="100" value="' + (registryRow.passPercent != null ? registryRow.passPercent : '') + '"></label>' +
+    '<label>Min correct<input type="number" name="minCorrect" min="0" value="' + (registryRow.minCorrect != null ? registryRow.minCorrect : '') + '"></label>' +
+    '<label>Reason for this correction (required — shown on the public changelog)' +
+    '<textarea name="reason" rows="2" required placeholder="e.g. corrected per [state]\'s official 2026 candidate handbook"></textarea></label>' +
+    '<div class="progress-reset-actions"><button class="btn-primary" type="submit">Save &amp; log change</button></div>' +
+    '</form></div>';
+}
+
+function openTrackMechanicsEdit(examType) {
+  var backdrop = document.createElement('div');
+  backdrop.className = 'code-detail-backdrop';
+  backdrop.id = 'track-mechanics-edit-backdrop';
+  backdrop.innerHTML = trackMechanicsEditModalHtml(examType);
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop || e.target.closest('[data-act="close-track-mechanics-edit"]')) closeTrackMechanicsEdit();
+  });
+  document.body.appendChild(backdrop);
+}
+
+function closeTrackMechanicsEdit() {
+  var backdrop = document.getElementById('track-mechanics-edit-backdrop');
+  if (backdrop) backdrop.remove();
 }
 
 async function renderSettings() {
@@ -2441,6 +2484,30 @@ appEl.addEventListener('submit', async function (e) {
     }
     affiliatePartnerFormOpen = false;
     renderAffiliates();
+  } else if (act === 'save-track-mechanics') {
+    e.preventDefault();
+    var tmf = e.target;
+    var examType = tmf.getAttribute('data-exam');
+    try {
+      await apiFetch('/console/track-registry/mechanics', {
+        method: 'POST',
+        body: {
+          examType: examType,
+          questionCount: tmf.questionCount.value ? parseInt(tmf.questionCount.value, 10) : undefined,
+          durationSec: tmf.durationMin.value ? parseInt(tmf.durationMin.value, 10) * 60 : undefined,
+          passPercent: tmf.passPercent.value ? parseInt(tmf.passPercent.value, 10) : undefined,
+          minCorrect: tmf.minCorrect.value ? parseInt(tmf.minCorrect.value, 10) : undefined,
+          reason: tmf.reason.value.trim(),
+        },
+      });
+    } catch (err) {
+      alert('Could not save this correction. (' + ((err.data && err.data.error) || err.message || 'unknown error') + ')');
+      return;
+    }
+    closeTrackMechanicsEdit();
+    trackRegistryPromise = null; // invalidate the memoized fetch so the table reflects the correction immediately
+    await loadTrackRegistry();
+    renderTracks();
   }
 });
 
@@ -2602,7 +2669,7 @@ appEl.addEventListener('click', async function (e) {
     if (pricingSort.key === pricingSortKey) pricingSort.dir *= -1;
     else { pricingSort.key = pricingSortKey; pricingSort.dir = 1; }
     applyPricingSortOrder();
-    document.getElementById('pricing-table-head').innerHTML = sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing');
+    document.getElementById('pricing-table-head').innerHTML = sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing').replace('</tr>', '<th></th></tr>');
     updatePricingRowVisibility(); // collapse cutoff depends on row order, which just changed
   } else if (act === 'sort-codes') {
     var codesSortKey = el.getAttribute('data-key');
@@ -2621,6 +2688,10 @@ appEl.addEventListener('click', async function (e) {
     testimonialsStatusFilter = el.getAttribute('data-status');
     document.getElementById('testimonials-filter-wrap').innerHTML = testimonialsFilterPillsHtml();
     drawTestimonialsTable();
+  } else if (act === 'edit-track-mechanics') {
+    openTrackMechanicsEdit(el.getAttribute('data-exam'));
+  } else if (act === 'close-track-mechanics-edit') {
+    closeTrackMechanicsEdit();
   } else if (act === 'show-affiliate-partner-form') {
     affiliatePartnerFormOpen = true;
     document.getElementById('affiliate-partner-form-wrap').innerHTML = affiliatePartnerFormHtml();
