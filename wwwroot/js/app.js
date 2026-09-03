@@ -1538,6 +1538,8 @@ async function renderSettings() {
   var accuracyPassPctVal = Number.isFinite(accuracyPassPct) ? accuracyPassPct : 80;
   var coveragePassPct = parseInt(bySetting.progress_coverage_pass_pct, 10);
   var coveragePassPctVal = Number.isFinite(coveragePassPct) ? coveragePassPct : 50;
+  var legislativeAlertMonths = parseInt(bySetting.legislative_alert_window_months, 10);
+  var legislativeAlertMonthsVal = Number.isFinite(legislativeAlertMonths) ? legislativeAlertMonths : 2;
 
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-grid">' +
@@ -1552,6 +1554,16 @@ async function renderSettings() {
     '<div class="settings-inline-field"><label class="price-row-label">Coverage turns green at/above</label>' +
     '<input type="number" step="1" min="0" max="100" class="coverage-pass-pct-input" data-original="' + coveragePassPctVal + '" value="' + coveragePassPctVal + '" placeholder="50">' +
     settingsSaveButton('save-progress-colors', 'progress-colors', 'Save') +
+    '</div></section>' +
+
+    '<section class="card settings-edit-group" data-group="legislative-alerts">' +
+    '<h3>Legislative change alerts</h3>' +
+    '<p class="muted page-intro-text">When a real exam-mechanics correction is logged on the Tracks tab (via "Edit exam mechanics"), ' +
+    'past buyers of that track are emailed automatically. This controls how far back "past buyers" reaches — a buyer from ' +
+    'years ago studying for a since-passed exam probably doesn\'t need to hear about it.</p>' +
+    '<div class="settings-inline-field"><label class="price-row-label">Notify buyers who purchased within the last (months)</label>' +
+    '<input type="number" step="1" min="1" max="60" class="legislative-alert-months-input" data-original="' + legislativeAlertMonthsVal + '" value="' + legislativeAlertMonthsVal + '" placeholder="2">' +
+    settingsSaveButton('save-legislative-alert-window', 'legislative-alerts', 'Save') +
     '</div></section>' +
 
     '</div>';
@@ -2802,6 +2814,14 @@ appEl.addEventListener('click', async function (e) {
       colorSaves.push(apiFetch('/console/settings', { method: 'POST', body: { key: 'progress_coverage_pass_pct', value: String(coveragePassPctVal) } }));
     }
     await Promise.all(colorSaves);
+    markSettingsGroupSaved(el);
+  } else if (act === 'save-legislative-alert-window') {
+    var legislativeAlertMonthsInput = document.querySelector('.legislative-alert-months-input');
+    var legislativeAlertMonthsVal = parseInt(legislativeAlertMonthsInput.value, 10);
+    if (!Number.isFinite(legislativeAlertMonthsVal) || legislativeAlertMonthsVal < 1 || legislativeAlertMonthsVal > 60) {
+      alert('Enter a value between 1 and 60 months.'); return;
+    }
+    await apiFetch('/console/settings', { method: 'POST', body: { key: 'legislative_alert_window_months', value: String(legislativeAlertMonthsVal) } });
     markSettingsGroupSaved(el);
   } else if (act === 'save-refund-failure-pct') {
     var refundFailurePctInput = document.querySelector('.refund-failure-pct-input');
