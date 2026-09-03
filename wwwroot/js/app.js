@@ -387,7 +387,12 @@ function renderCodesExamFilterHtml(codes) {
   codes.forEach(function (c) { counts[c.exam_type] = (counts[c.exam_type] || 0) + 1; });
   // Only exam types with at least one code -- a flat list of every track (300+) would swamp the
   // handful actually in use, same reasoning as the 0-count-hiding rule on the Tracks/Questions pills.
-  var examTypes = Object.keys(counts).sort(function (a, b) { return a.localeCompare(b); });
+  // Sort by the DISPLAYED label ("California Real Estate Broker"), not the raw exam_type key
+  // ("ca_re_broker") -- the key's 2-letter state-abbreviation prefix doesn't always match full-name
+  // alphabetical order (e.g. "ia" < "in" but "Indiana" < "Iowa"), which produced a visibly
+  // out-of-order dropdown. Labels are "State Kind", so sorting the label naturally groups by state
+  // first, then kind within that state.
+  var examTypes = Object.keys(counts).sort(function (a, b) { return trackLabelFor(a).localeCompare(trackLabelFor(b)); });
   var options = '<option value="">All Exams (' + codes.length + ')</option>' + examTypes.map(function (et) {
     return '<option value="' + escapeHtml(et) + '"' + (codesExamFilter === et ? ' selected' : '') + '>' + escapeHtml(trackLabelFor(et)) + ' (' + counts[et] + ')</option>';
   }).join('');
