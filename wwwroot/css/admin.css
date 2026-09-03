@@ -193,6 +193,8 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 .settings-filter-pill button:last-child { border-right: none; }
 .settings-filter-pill button:hover { color: var(--accent); }
 .settings-filter-pill button.active { background: var(--accent); color: #fff; }
+.pill-excluded-count { color: var(--incorrect); font-weight: 700; }
+.settings-filter-pill button.active .pill-excluded-count { color: #fecaca; }
 .settings-filter-input { width: 100%; margin-bottom: 0.6rem; }
 .settings-edit-table .price-input, .settings-edit-table .rule-points-input { width: 100%; max-width: 9rem; }
 .settings-edit-table tr.row-dirty { background: color-mix(in srgb, var(--accent) 8%, transparent); }

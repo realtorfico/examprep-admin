@@ -1412,6 +1412,14 @@ function applyPricingSortOrder() {
   rows.forEach(function (row) { tbody.appendChild(row); });
 }
 
+// Excluded-state count for one category (kind), 0 if that kind has no deliberate exclusions --
+// see EXCLUDED_STATES_BY_CATEGORY above.
+function excludedCountForKind(kind) {
+  var cat = EXCLUDED_STATES_BY_CATEGORY.filter(function (c) { return c.category === kind; })[0];
+  if (!cat) return 0;
+  return cat.groups.reduce(function (s, g) { return s + g.states.length; }, 0);
+}
+
 function renderPricingKindFilterPills() {
   var kinds = [];
   EXAM_TYPES.forEach(function (t) { if (kinds.indexOf(t[3]) === -1) kinds.push(t[3]); });
@@ -1419,15 +1427,19 @@ function renderPricingKindFilterPills() {
   // No state filter on this tab (removed -- the free-text search below already covers narrowing by
   // state, since every track label includes its state name, e.g. "California Real Estate Broker"),
   // so kind-pill counts are just a flat count per kind, no cross-filtering to combine with.
-  var options = [['', 'All Types (' + EXAM_TYPES.length + ')']].concat(kinds.map(function (k) {
+  var totalExcluded = EXCLUDED_STATES_BY_CATEGORY.reduce(function (sum, c) {
+    return sum + c.groups.reduce(function (s, g) { return s + g.states.length; }, 0);
+  }, 0);
+  var options = [['', 'All Types (' + EXAM_TYPES.length + ')', totalExcluded]].concat(kinds.map(function (k) {
     var count = EXAM_TYPES.filter(function (t) { return t[3] === k; }).length;
-    return [k, k + ' (' + count + ')'];
+    return [k, k + ' (' + count + ')', excludedCountForKind(k)];
   }));
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by exam type">' +
     options.map(function (o) {
       var active = pricingKindFilter === o[0];
+      var excludedBadge = o[2] > 0 ? ' <span class="pill-excluded-count">+' + o[2] + ' excluded</span>' : '';
       return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-pricing-kind" data-kind="' + o[0] + '"' +
-        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + excludedBadge + '</button>';
     }).join('') + '</div>';
 }
 
