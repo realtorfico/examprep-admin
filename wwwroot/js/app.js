@@ -460,7 +460,8 @@ async function renderCodes() {
   appEl.innerHTML = renderTabs('codes') +
     '<div class="card">' +
     '<form data-act="generate-code" class="generate-form">' +
-    '<select name="examType">' + EXAM_TYPES.filter(function (t) { return t[0] !== 'mlo'; }).map(function (t) {
+    '<select name="examType">' + EXAM_TYPES.filter(function (t) { return t[0] !== 'mlo'; })
+      .sort(function (a, b) { return a[1].localeCompare(b[1]); }).map(function (t) {
       return '<option value="' + t[0] + '">' + t[1] + '</option>';
     }).join('') + '</select>' +
     '<input type="text" name="note" placeholder="note (optional)">' +
