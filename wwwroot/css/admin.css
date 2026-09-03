@@ -241,6 +241,12 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 .admin-user-items { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
 .admin-user-table { margin-top: 0.75rem; font-size: 0.75rem; }
 .admin-user-table th, .admin-user-table td { padding: 0.3rem 0.4rem; word-break: break-word; }
+#excluded-states-panel { font-size: 0.9rem; }
+#excluded-states-panel > summary { font-size: 1rem; }
+.excluded-states-category { margin: 0.75rem 0 0 0.25rem; }
+.excluded-states-category > summary { cursor: pointer; font-weight: 600; }
+.excluded-states-reasons { margin: 0.5rem 0 0.75rem; padding-left: 1.25rem; }
+.excluded-states-reasons li { margin-bottom: 0.5rem; line-height: 1.5; }
 /* Fits the narrow (1fr) resource-consumption column without widening it or scrolling. */
 .resource-consumption-table { table-layout: fixed; }
 .resource-consumption-table th:nth-child(1), .resource-consumption-table td:nth-child(1) { width: 34%; }

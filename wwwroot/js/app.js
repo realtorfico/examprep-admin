@@ -643,6 +643,62 @@ var STATE_LABELS = {
   WI: 'Wisconsin', WV: 'West Virginia', WY: 'Wyoming',
   US: 'National',
 };
+// States deliberately NOT built for a category, and why -- maintained by hand from this project's
+// own landscape-research memory (there is no live signal for "we looked and decided not to build
+// this" the way track_registry has a live signal for what IS built). Each category only appears
+// here if it has real, deliberate exclusions; a category with every state built (or where "missing"
+// just means "not yet built" rather than "decided against") is simply absent from this list. Keep
+// this in sync by hand when a landscape check adds/resolves an exclusion -- there's no script that
+// derives it automatically.
+var EXCLUDED_STATES_BY_CATEGORY = [
+  {
+    category: 'Real Estate Broker',
+    groups: [
+      { reason: 'Entry-level license is itself the "Broker" tier (no Salesperson tier exists) -- the further upgrade designation is earned via an experience/points requirement or a self-paced course, not a second proctored exam', states: ['NC', 'CO', 'IN'] },
+      { reason: 'No real broker-level exam distinct from Salesperson, or no separate Broker license tier at all', states: ['NM', 'ME'] },
+      { reason: 'Entry-level "Broker Associate" license is already covered by this site\'s existing sd_real_estate track; the tier above it has no separate exam', states: ['SD'] },
+    ],
+  },
+  {
+    category: 'Motorcycle',
+    groups: [
+      { reason: 'Written knowledge exam is waived for most applicants who complete a rider course', states: ['FL', 'IL', 'NJ', 'AZ', 'MA', 'CO', 'DE', 'IN', 'IA', 'KS', 'KY', 'LA', 'MD', 'MO', 'NE', 'NV', 'NH', 'NM', 'OK', 'OR', 'RI', 'SC', 'SD', 'TN', 'VT', 'WV', 'WI', 'WY'] },
+      { reason: 'Exam is not waived, but deliberately deprioritized for low population/ROI', states: ['AK', 'ND', 'MT', 'ME', 'ID'] },
+      { reason: 'Waiver status unresolved -- research found directly contradictory sources', states: ['HI'] },
+    ],
+  },
+  {
+    category: 'Boating',
+    groups: [
+      { reason: 'No mandatory boating-education law exists at all (voluntary/insurance-discount only)', states: ['ID', 'SD', 'AK', 'WY'] },
+      { reason: 'A mandate exists, but real-world boating-culture fit was judged weak despite population', states: ['CO'] },
+      { reason: 'Mandate is permanently capped to a narrow youth age-band (e.g. ages 12-17 only) with no cohort growth over time', states: ['IN', 'KY', 'OR', 'OK', 'UT', 'IA', 'KS', 'MT', 'ND'] },
+      { reason: 'Broad, growing mandate but below the population cutoff -- flagged as a reconsideration candidate, not yet approved to build', states: ['ME', 'NH', 'RI'] },
+      { reason: 'Broad, growing mandate but below the population cutoff', states: ['AR', 'MS', 'NM', 'NE', 'WV', 'HI', 'DE', 'VT'] },
+    ],
+  },
+];
+
+function renderExcludedStatesPanel() {
+  var totalExcluded = EXCLUDED_STATES_BY_CATEGORY.reduce(function (sum, c) {
+    return sum + c.groups.reduce(function (s, g) { return s + g.states.length; }, 0);
+  }, 0);
+  var categoriesHtml = EXCLUDED_STATES_BY_CATEGORY.map(function (c) {
+    var catCount = c.groups.reduce(function (s, g) { return s + g.states.length; }, 0);
+    var groupsHtml = c.groups.map(function (g) {
+      var stateList = g.states.map(function (code) { return (STATE_LABELS[code] || code) + ' (' + code + ')'; }).join(', ');
+      return '<li><span class="muted">' + escapeHtml(g.reason) + ':</span> ' + escapeHtml(stateList) + '</li>';
+    }).join('');
+    return '<details class="excluded-states-category"><summary>' + escapeHtml(c.category) + ' &mdash; ' + catCount + ' excluded</summary>' +
+      '<ul class="excluded-states-reasons">' + groupsHtml + '</ul></details>';
+  }).join('');
+  return '<details class="card admin-user-group" id="excluded-states-panel">' +
+    '<summary>Excluded states by category (' + totalExcluded + ' total) — states deliberately not built, and why</summary>' +
+    '<p class="muted page-intro-text">A missing state below is a decision, not a gap. States not listed here are either fully built or a build is still pending (not yet drafted) -- only see them listed above if a landscape check specifically ruled the state out.</p>' +
+    categoriesHtml +
+    '</details>';
+}
+
 // Filter hierarchy is kind -> state -> topic: kind and state are pills over EXAM_TYPES (mutually
 // scoped counts, same pattern as the Settings > Course pricing table's filter pills below), and
 // resolve to a *set* of exam_types -- one when narrowed all the way to a single track, more than
@@ -1468,6 +1524,7 @@ async function renderTracks() {
   }).join('');
 
   appEl.innerHTML = renderTabs('tracks') +
+    renderExcludedStatesPanel() +
     '<section class="card settings-edit-group" data-group="pricing">' +
     '<div class="settings-edit-toolbar">' +
     '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD. ' +
