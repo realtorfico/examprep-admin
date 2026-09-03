@@ -1437,7 +1437,7 @@ function renderPricingKindFilterPills() {
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by exam type">' +
     options.map(function (o) {
       var active = pricingKindFilter === o[0];
-      var excludedBadge = o[2] > 0 ? ' <span class="pill-excluded-count">+' + o[2] + ' excluded</span>' : '';
+      var excludedBadge = o[2] > 0 ? ' <span class="pill-excluded-count">+' + o[2] + ' excl</span>' : '';
       return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-pricing-kind" data-kind="' + o[0] + '"' +
         (active ? ' aria-current="true"' : '') + '>' + o[1] + excludedBadge + '</button>';
     }).join('') + '</div>';
