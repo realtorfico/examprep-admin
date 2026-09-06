@@ -252,6 +252,8 @@ var blogCategoriesCache = []; // fetched alongside blog posts, just for the kind
 var blogFormState = null; // null (closed) | 'new' | the post object being edited
 var blogKindFilter = ''; // '' = All categories; otherwise a category slug (post.kind)
 var blogStatusFilter = ''; // '' = All; 'published'; 'draft'
+var blogStateFilter = ''; // '' = All; otherwise a 2-letter state code (post.state_code) -- posts with no state are excluded once a specific state is picked, same as leaving them out of that state's count
+var blogTypeFilter = ''; // '' = All; 'longtail'; 'editorial' -- see isLongtailBlogPost()
 var blogFilterQuery = ''; // free-text, matched against title/slug/state
 var blogRowsExpanded = false;
 var BLOG_COLLAPSED_COUNT = 20; // 323 posts and growing -- same collapse pattern as the pricing table
@@ -283,7 +285,7 @@ function blogFormHtml() {
 
 function blogRowHtml(p) {
   var stateLabel = p.state_code ? (STATE_LABELS[p.state_code] || p.state_code) : '';
-  return '<div class="card promotion-row" data-row-key="' + escapeHtml(p.id) + '" data-kind="' + escapeHtml(p.kind || '') + '" data-status="' + escapeHtml(p.status || '') + '" data-state="' + escapeHtml(p.state_code || '') + '">' +
+  return '<div class="card promotion-row" data-row-key="' + escapeHtml(p.id) + '" data-kind="' + escapeHtml(p.kind || '') + '" data-status="' + escapeHtml(p.status || '') + '" data-state="' + escapeHtml(p.state_code || '') + '" data-type="' + (isLongtailBlogPost(p) ? 'longtail' : 'editorial') + '">' +
     '<div class="promotion-row-top">' +
     '<strong>' + escapeHtml(p.title) + '</strong> ' +
     '<span class="badge' + (p.status === 'published' ? ' active' : '') + '">' + (p.status === 'published' ? 'Published' : 'Draft') + '</span> ' +
@@ -298,38 +300,97 @@ function blogRowHtml(p) {
     '</div></div>';
 }
 
-// Kind pills, same pattern/markup as renderPricingKindFilterPills() -- counts respect the current
-// status filter too, so switching status doesn't leave a stale count on the kind row.
+// Kind -> state -> status all mutually scope each other's counts (feedback_admin_list_ux.md's
+// established hierarchy), same "filter down, then count within what's left" approach as
+// questionsTrackMatchesFilters()/renderQuestionsStateFilterPills(). Since blog posts have no
+// separate "topic" taxonomy, this tab's hierarchy stops at kind -> state -> status rather than
+// going one level deeper.
+// The long-tail SEO campaign (project_marketing_round4_countdown_and_longtail_seo, 260 posts, one
+// per state x category) has no dedicated DB field marking it as such -- it's identified here the
+// same way it was verified before building this pill: every one of those 260 posts' slugs end in
+// "-practice-test-cheat-sheet", a pattern the small set of hand-written editorial posts never uses.
+function isLongtailBlogPost(p) {
+  return /practice-test-cheat-sheet$/.test(p.slug || '');
+}
+
+function blogPostMatchesFilters(p, kind, state, status, type) {
+  return (!kind || p.kind === kind) && (!state || p.state_code === state) && (!status || p.status === status) &&
+    (!type || (type === 'longtail' ? isLongtailBlogPost(p) : !isLongtailBlogPost(p)));
+}
+
 function renderBlogKindFilterPills() {
-  var statusScoped = blogCache.filter(function (p) { return !blogStatusFilter || p.status === blogStatusFilter; });
   var kindLabel = {};
   blogCategoriesCache.forEach(function (c) { kindLabel[c.slug] = c.label; });
   var kinds = [];
-  statusScoped.forEach(function (p) { if (p.kind && kinds.indexOf(p.kind) === -1) kinds.push(p.kind); });
+  blogCache.forEach(function (p) { if (p.kind && kinds.indexOf(p.kind) === -1) kinds.push(p.kind); });
   kinds.sort(function (a, b) { return (kindLabel[a] || a).localeCompare(kindLabel[b] || b); });
-  var options = [['', 'All Categories (' + statusScoped.length + ')']].concat(kinds.map(function (k) {
-    var count = statusScoped.filter(function (p) { return p.kind === k; }).length;
-    return [k, (kindLabel[k] || k) + ' (' + count + ')'];
-  }));
+  var allCount = blogCache.filter(function (p) { return blogPostMatchesFilters(p, '', blogStateFilter, blogStatusFilter, blogTypeFilter); }).length;
+  var options = [['', 'All Categories (' + allCount + ')']].concat(kinds.map(function (k) {
+    var count = blogCache.filter(function (p) { return blogPostMatchesFilters(p, k, blogStateFilter, blogStatusFilter, blogTypeFilter); }).length;
+    return [k, (kindLabel[k] || k) + ' (' + count + ')', count];
+  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === blogKindFilter; });
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by category">' +
     options.map(function (o) {
       var active = blogKindFilter === o[0];
-      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-blog-kind" data-kind="' + o[0] + '"' +
-        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-blog-kind" data-kind="' + escapeHtml(o[0]) + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + escapeHtml(o[1]) + '</button>';
+    }).join('') + '</div>';
+}
+
+// State pills, only for posts that actually have a state_code (many blog posts are
+// category-general, not state-specific) -- 0-count states are hidden the same way
+// renderQuestionsStateFilterPills() hides them, except the currently-active selection so it stays
+// deselectable.
+function renderBlogStateFilterPills() {
+  var codes = [];
+  blogCache.forEach(function (p) { if (p.state_code && codes.indexOf(p.state_code) === -1) codes.push(p.state_code); });
+  if (!codes.length) return ''; // nothing state-specific in the whole cache -- don't show an empty pill row
+  codes.sort(function (a, b) { return (STATE_LABELS[a] || a).localeCompare(STATE_LABELS[b] || b); });
+  var allCount = blogCache.filter(function (p) { return blogPostMatchesFilters(p, blogKindFilter, '', blogStatusFilter, blogTypeFilter); }).length;
+  var options = [['', 'All States (' + allCount + ')']].concat(codes.map(function (c) {
+    var count = blogCache.filter(function (p) { return blogPostMatchesFilters(p, blogKindFilter, c, blogStatusFilter, blogTypeFilter); }).length;
+    return [c, (STATE_LABELS[c] || c) + ' (' + count + ')', count];
+  })).filter(function (o) { return o[0] === '' || o[2] > 0 || o[0] === blogStateFilter; });
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by state">' +
+    options.map(function (o) {
+      var active = blogStateFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-blog-state" data-state="' + escapeHtml(o[0]) + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + escapeHtml(o[1]) + '</button>';
     }).join('') + '</div>';
 }
 
 function renderBlogStatusFilterPills() {
-  var kindScoped = blogCache.filter(function (p) { return !blogKindFilter || p.kind === blogKindFilter; });
   var options = [
-    ['', 'All (' + kindScoped.length + ')'],
-    ['published', 'Published (' + kindScoped.filter(function (p) { return p.status === 'published'; }).length + ')'],
-    ['draft', 'Draft (' + kindScoped.filter(function (p) { return p.status === 'draft'; }).length + ')'],
-  ];
+    ['', 'All'],
+    ['published', 'Published'],
+    ['draft', 'Draft'],
+  ].map(function (o) {
+    var count = blogCache.filter(function (p) { return blogPostMatchesFilters(p, blogKindFilter, blogStateFilter, o[0], blogTypeFilter); }).length;
+    return [o[0], o[1] + ' (' + count + ')'];
+  });
   return '<div class="settings-filter-pill" role="group" aria-label="Filter by status">' +
     options.map(function (o) {
       var active = blogStatusFilter === o[0];
       return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-blog-status" data-status="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+// Distinguishes the 260-post long-tail SEO campaign from the smaller set of hand-written
+// editorial articles -- see isLongtailBlogPost() for how that's detected (no dedicated field).
+function renderBlogTypeFilterPills() {
+  var options = [
+    ['', 'All'],
+    ['longtail', 'Long-Tail SEO'],
+    ['editorial', 'Editorial'],
+  ].map(function (o) {
+    var count = blogCache.filter(function (p) { return blogPostMatchesFilters(p, blogKindFilter, blogStateFilter, blogStatusFilter, o[0]); }).length;
+    return [o[0], o[1] + ' (' + count + ')'];
+  });
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by content type">' +
+    options.map(function (o) {
+      var active = blogTypeFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-blog-type" data-type="' + o[0] + '"' +
         (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
     }).join('') + '</div>';
 }
@@ -345,7 +406,9 @@ function updateBlogRowVisibility() {
     var matchesText = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
     var matchesKind = !blogKindFilter || row.dataset.kind === blogKindFilter;
     var matchesStatus = !blogStatusFilter || row.dataset.status === blogStatusFilter;
-    var matches = matchesText && matchesKind && matchesStatus;
+    var matchesState = !blogStateFilter || row.dataset.state === blogStateFilter;
+    var matchesType = !blogTypeFilter || row.dataset.type === blogTypeFilter;
+    var matches = matchesText && matchesKind && matchesStatus && matchesState && matchesType;
     if (matches) matchCount++;
     var visible = matches && (blogRowsExpanded || shown < BLOG_COLLAPSED_COUNT);
     row.style.display = visible ? '' : 'none';
@@ -376,6 +439,8 @@ async function renderBlog() {
   blogCategoriesCache = results[1].categories;
   blogKindFilter = '';
   blogStatusFilter = '';
+  blogStateFilter = '';
+  blogTypeFilter = '';
   blogFilterQuery = '';
   blogRowsExpanded = false;
   drawBlog();
@@ -390,7 +455,9 @@ function drawBlog() {
     '`node scripts/generate-seo-meta.js` in the site repo manually for an immediate update).</p>' +
     '<div class="card"><div id="blog-form-wrap">' + blogFormHtml() + '</div>' + addButton + '</div>' +
     (blogCache.length ? '<div class="settings-filter-pills-row" id="blog-kind-filter-wrap">' + renderBlogKindFilterPills() + '</div>' +
+      '<div class="settings-filter-pills-row" id="blog-state-filter-wrap">' + renderBlogStateFilterPills() + '</div>' +
       '<div class="settings-filter-pills-row" id="blog-status-filter-wrap">' + renderBlogStatusFilterPills() + '</div>' +
+      '<div class="settings-filter-pills-row" id="blog-type-filter-wrap">' + renderBlogTypeFilterPills() + '</div>' +
       '<input type="search" class="settings-filter-input" id="blog-search-input" placeholder="Filter articles by title, slug, or state…" value="' + escapeHtml(blogFilterQuery) + '">' +
       '<p class="muted" id="blog-empty-filtered" style="display:none">No articles match this filter.</p>' +
       '<div id="blog-rows-wrap">' + rows + '</div>' +
@@ -1461,8 +1528,11 @@ var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
 var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['kind', 'Category'], ['state', 'State'], ['examReq', 'Exam Req?'],
-  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
-var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, kind: 3, state: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10, minCorrect: 11 };
+  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct'], ['resources', 'Resources']];
+var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, kind: 3, state: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10, minCorrect: 11, resources: 12 };
+// Populated once per Tracks page load from GET /resources/catalog?counts=1 (see renderTracks()) --
+// { examType: {tables, decks, cards, audio, video} }. Empty/missing entry means zero resources.
+var trackResourceCounts = {};
 
 var pricingSort = { key: '', dir: 1 }; // key: '' = unsorted (original EXAM_TYPES order)
 
@@ -1570,13 +1640,15 @@ async function renderTracks() {
   var results = await Promise.all([
     apiFetch('/console/pricing'),
     apiFetch('/console/questions/counts'),
+    apiFetch('/resources/catalog?counts=1'), // same public endpoint the site itself uses -- ~11KB, counts only
   ]);
-  var pricingData = results[0], questionCountsData = results[1];
+  var pricingData = results[0], questionCountsData = results[1], resourceCountsData = results[2];
 
   var byExam = {};
   pricingData.pricing.forEach(function (p) { byExam[p.exam_type] = p; });
   var questionCountByExam = {};
   questionCountsData.counts.forEach(function (c) { questionCountByExam[c.exam_type] = c.count; });
+  trackResourceCounts = resourceCountsData.counts || {};
   function examDurationLabel(durationSec) {
     return durationSec ? Math.round(durationSec / 60) + ' min' : 'Untimed';
   }
@@ -1628,6 +1700,7 @@ async function renderTracks() {
       '<td' + mockExamCellAttrs + ' data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
       '<td' + mockExamCellAttrs + '>' + examConfig.passPercent + '%</td>' +
       '<td' + mockExamCellAttrs + '>' + (examConfig.minCorrect != null ? examConfig.minCorrect : '—') + '</td>' +
+      '<td class="muted settings-readonly-cell">' + trackResourceSummaryHtml(examType) + '</td>' +
       '<td><button class="btn-secondary btn-sm" type="button" data-act="edit-track-mechanics" data-exam="' + examType + '">Edit</button></td></tr>';
   }).join('');
 
@@ -1648,6 +1721,73 @@ async function renderTracks() {
   pricingFilterQuery = '';
   applyPricingSortOrder();
   updatePricingRowVisibility();
+}
+
+// ---- Resources drill-down (Key Facts Digest coverage per track) -----------------------
+// Compact summary cell for the Tracks table's Resources column -- counts only, from the same
+// ?counts=1 payload already fetched for the whole table (no per-row request). Full item titles
+// are fetched lazily, one track at a time, only when the drill-down modal is actually opened.
+function trackResourceSummaryHtml(examType) {
+  var c = trackResourceCounts[examType];
+  var total = c ? (c.tables || 0) + (c.decks || 0) + (c.audio || 0) + (c.video || 0) : 0;
+  if (!total) {
+    return '<button class="btn-secondary btn-sm" type="button" data-act="view-track-resources" data-exam="' + examType + '">None</button>';
+  }
+  var parts = [];
+  if (c.tables) parts.push(c.tables + 'T');
+  if (c.decks) parts.push(c.decks + 'D' + (c.cards ? ' (' + c.cards + ' cards)' : ''));
+  if (c.audio) parts.push(c.audio + 'A');
+  if (c.video) parts.push(c.video + 'V');
+  return '<button class="btn-secondary btn-sm" type="button" data-act="view-track-resources" data-exam="' + examType + '">' + escapeHtml(parts.join(' · ')) + '</button>';
+}
+
+function trackResourceDrilldownModalHtml(examType, items) {
+  var label = (EXAM_TYPES.filter(function (t) { return t[0] === examType; })[0] || [])[1] || examType;
+  var TYPE_LABEL = { table: 'Table', flashcards: 'Flashcards', audio: 'Audio', video: 'Video', pdf: 'PDF', webpage: 'Webpage', link: 'Link' };
+  var rows = (items || []).map(function (r, i) {
+    var extra = r.type === 'flashcards' && r.flashcards ? r.flashcards.length + ' cards'
+      : r.type === 'table' && r.table && r.table.rows ? r.table.rows.length + ' rows'
+      : (r.type === 'audio' || r.type === 'video' || r.type === 'pdf') ? (r.file || r.url || '')
+      : '';
+    return '<tr><td class="muted">' + i + '</td><td>' + escapeHtml(TYPE_LABEL[r.type] || r.type) + '</td>' +
+      '<td>' + escapeHtml(r.title || '') + '</td><td class="muted">' + escapeHtml(r.topic || '') + '</td>' +
+      '<td>' + (r.free ? '<span class="badge active">Free</span>' : '') + '</td>' +
+      '<td class="muted">' + escapeHtml(extra) + '</td></tr>';
+  }).join('');
+  var body = items === null ? '<p class="muted">Loading…</p>'
+    : (items.length ? '<div class="settings-table-scroll"><table class="settings-edit-table"><thead><tr><th>Ord</th><th>Type</th><th>Title</th><th>Topic</th><th>Free</th><th>File / rows / cards</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<p class="muted">No Key Facts Digest resources for this track yet (may still have a plain PDF/link row, or nothing at all).</p>');
+  return '<div class="code-detail-modal">' +
+    '<div class="code-detail-modal-header"><h3>Resources — ' + escapeHtml(label) + '</h3>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="close-track-resources">Close</button></div>' +
+    body + '</div>';
+}
+
+async function openTrackResourceDrilldown(examType) {
+  var backdrop = document.createElement('div');
+  backdrop.className = 'code-detail-backdrop';
+  backdrop.id = 'track-resources-backdrop';
+  backdrop.innerHTML = trackResourceDrilldownModalHtml(examType, null); // "Loading…" first paint
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop || e.target.closest('[data-act="close-track-resources"]')) closeTrackResourceDrilldown();
+  });
+  document.body.appendChild(backdrop);
+  try {
+    var data = await apiFetch('/resources/catalog?examType=' + encodeURIComponent(examType));
+    var items = (data.resources && data.resources[examType]) || [];
+    if (document.getElementById('track-resources-backdrop') === backdrop) {
+      backdrop.innerHTML = trackResourceDrilldownModalHtml(examType, items);
+    }
+  } catch (err) {
+    if (document.getElementById('track-resources-backdrop') === backdrop) {
+      backdrop.innerHTML = trackResourceDrilldownModalHtml(examType, []);
+    }
+  }
+}
+
+function closeTrackResourceDrilldown() {
+  var backdrop = document.getElementById('track-resources-backdrop');
+  if (backdrop) backdrop.remove();
 }
 
 // ---- Track mechanics edit (feeds the public /changelog transparency page) -------------
@@ -2769,21 +2909,18 @@ appEl.addEventListener('click', async function (e) {
     if (!confirm('Delete this article? This cannot be undone.')) return;
     await apiFetch('/console/blog/delete', { method: 'POST', body: { id: el.getAttribute('data-id') } });
     renderBlog();
-  } else if (act === 'filter-blog-kind') {
-    var newBlogKindFilter = el.getAttribute('data-kind');
-    if (newBlogKindFilter === blogKindFilter) return;
-    blogKindFilter = newBlogKindFilter;
+  } else if (act === 'filter-blog-kind' || act === 'filter-blog-state' || act === 'filter-blog-status' || act === 'filter-blog-type') {
+    // All four dimensions mutually scope each other's pill counts -- re-render all four wraps
+    // after any one changes, same approach as the kind/state pills elsewhere in this file.
+    if (act === 'filter-blog-kind') blogKindFilter = el.getAttribute('data-kind');
+    else if (act === 'filter-blog-state') blogStateFilter = el.getAttribute('data-state');
+    else if (act === 'filter-blog-status') blogStatusFilter = el.getAttribute('data-status');
+    else blogTypeFilter = el.getAttribute('data-type');
     blogRowsExpanded = false;
     document.getElementById('blog-kind-filter-wrap').innerHTML = renderBlogKindFilterPills();
-    document.getElementById('blog-status-filter-wrap').innerHTML = renderBlogStatusFilterPills(); // its counts depend on the kind filter too
-    updateBlogRowVisibility();
-  } else if (act === 'filter-blog-status') {
-    var newBlogStatusFilter = el.getAttribute('data-status');
-    if (newBlogStatusFilter === blogStatusFilter) return;
-    blogStatusFilter = newBlogStatusFilter;
-    blogRowsExpanded = false;
+    document.getElementById('blog-state-filter-wrap').innerHTML = renderBlogStateFilterPills();
     document.getElementById('blog-status-filter-wrap').innerHTML = renderBlogStatusFilterPills();
-    document.getElementById('blog-kind-filter-wrap').innerHTML = renderBlogKindFilterPills(); // its counts depend on the status filter too
+    document.getElementById('blog-type-filter-wrap').innerHTML = renderBlogTypeFilterPills();
     updateBlogRowVisibility();
   } else if (act === 'toggle-blog-rows') {
     blogRowsExpanded = !blogRowsExpanded;
@@ -2889,6 +3026,10 @@ appEl.addEventListener('click', async function (e) {
     openTrackMechanicsEdit(el.getAttribute('data-exam'));
   } else if (act === 'close-track-mechanics-edit') {
     closeTrackMechanicsEdit();
+  } else if (act === 'view-track-resources') {
+    openTrackResourceDrilldown(el.getAttribute('data-exam'));
+  } else if (act === 'close-track-resources') {
+    closeTrackResourceDrilldown();
   } else if (act === 'show-affiliate-partner-form') {
     affiliatePartnerFormOpen = true;
     document.getElementById('affiliate-partner-form-wrap').innerHTML = affiliatePartnerFormHtml();
