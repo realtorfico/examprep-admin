@@ -314,7 +314,12 @@ function isLongtailBlogPost(p) {
 }
 
 function blogPostMatchesFilters(p, kind, state, status, type) {
-  return (!kind || p.kind === kind) && (!state || p.state_code === state) && (!status || p.status === status) &&
+  // A state pill means "relevant to this state" -- that includes both this state's own posts AND
+  // state-agnostic editorial posts (all 63 of which have no state_code at all, since their topics
+  // apply everywhere), not just a literal state_code match. Confirmed via the user 2026-09-06
+  // after "no editorial articles after choosing a state" turned out to be correct-but-confusing
+  // strict filtering, not a bug.
+  return (!kind || p.kind === kind) && (!state || p.state_code === state || !p.state_code) && (!status || p.status === status) &&
     (!type || (type === 'longtail' ? isLongtailBlogPost(p) : !isLongtailBlogPost(p)));
 }
 
@@ -406,7 +411,9 @@ function updateBlogRowVisibility() {
     var matchesText = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
     var matchesKind = !blogKindFilter || row.dataset.kind === blogKindFilter;
     var matchesStatus = !blogStatusFilter || row.dataset.status === blogStatusFilter;
-    var matchesState = !blogStateFilter || row.dataset.state === blogStateFilter;
+    // A state pill also includes state-agnostic posts (empty dataset.state) -- see
+    // blogPostMatchesFilters()'s comment for why.
+    var matchesState = !blogStateFilter || row.dataset.state === blogStateFilter || !row.dataset.state;
     var matchesType = !blogTypeFilter || row.dataset.type === blogTypeFilter;
     var matches = matchesText && matchesKind && matchesStatus && matchesState && matchesType;
     if (matches) matchCount++;
