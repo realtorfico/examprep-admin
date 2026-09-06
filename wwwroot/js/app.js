@@ -1534,9 +1534,9 @@ var PRICING_COLLAPSED_COUNT = 7;
 var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
-var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['kind', 'Category'], ['state', 'State'], ['examReq', 'Exam Req?'],
-  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct'], ['resources', 'Resources']];
-var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, kind: 3, state: 4, examReq: 5, questions: 6, examQs: 7, bankPct: 8, duration: 9, passScore: 10, minCorrect: 11, resources: 12 };
+var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['resources', 'Resources'], ['kind', 'Category'], ['state', 'State'], ['examReq', 'Exam Req?'],
+  ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
+var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, resources: 3, kind: 4, state: 5, examReq: 6, questions: 7, examQs: 8, bankPct: 9, duration: 10, passScore: 11, minCorrect: 12 };
 // Populated once per Tracks page load from GET /resources/catalog?counts=1 (see renderTracks()) --
 // { examType: {tables, decks, cards, audio, video} }. Empty/missing entry means zero resources.
 var trackResourceCounts = {};
@@ -1698,6 +1698,7 @@ async function renderTracks() {
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
       '</td><td><label class="rule-active-label"><input type="checkbox" class="track-active-input" data-exam="' + examType + '" data-original="' + trackActiveOriginal + '"' +
       (trackActive ? ' checked' : '') + '></label></td>' +
+      '<td class="muted settings-readonly-cell">' + trackResourceSummaryHtml(examType) + '</td>' +
       '<td class="muted">' + examKind + '</td>' +
       '<td class="muted">' + (STATE_LABELS[stateCode] || stateCode) + '</td>' +
       '<td class="muted settings-readonly-cell">' + (examRequired ? 'Yes' : 'No') + '</td>' +
@@ -1707,7 +1708,6 @@ async function renderTracks() {
       '<td' + mockExamCellAttrs + ' data-seconds="' + examConfig.durationSec + '">' + examDurationLabel(examConfig.durationSec) + '</td>' +
       '<td' + mockExamCellAttrs + '>' + examConfig.passPercent + '%</td>' +
       '<td' + mockExamCellAttrs + '>' + (examConfig.minCorrect != null ? examConfig.minCorrect : '—') + '</td>' +
-      '<td class="muted settings-readonly-cell">' + trackResourceSummaryHtml(examType) + '</td>' +
       '<td><button class="btn-secondary btn-sm" type="button" data-act="edit-track-mechanics" data-exam="' + examType + '">Edit</button></td></tr>';
   }).join('');
 
