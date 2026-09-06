@@ -250,6 +250,11 @@ function drawCategories() {
 var blogCache = [];
 var blogCategoriesCache = []; // fetched alongside blog posts, just for the kind <select> options
 var blogFormState = null; // null (closed) | 'new' | the post object being edited
+var blogKindFilter = ''; // '' = All categories; otherwise a category slug (post.kind)
+var blogStatusFilter = ''; // '' = All; 'published'; 'draft'
+var blogFilterQuery = ''; // free-text, matched against title/slug/state
+var blogRowsExpanded = false;
+var BLOG_COLLAPSED_COUNT = 20; // 323 posts and growing -- same collapse pattern as the pricing table
 
 function blogFormHtml() {
   if (!blogFormState) return '';
@@ -277,11 +282,13 @@ function blogFormHtml() {
 }
 
 function blogRowHtml(p) {
-  return '<div class="card promotion-row">' +
+  var stateLabel = p.state_code ? (STATE_LABELS[p.state_code] || p.state_code) : '';
+  return '<div class="card promotion-row" data-row-key="' + escapeHtml(p.id) + '" data-kind="' + escapeHtml(p.kind || '') + '" data-status="' + escapeHtml(p.status || '') + '" data-state="' + escapeHtml(p.state_code || '') + '">' +
     '<div class="promotion-row-top">' +
     '<strong>' + escapeHtml(p.title) + '</strong> ' +
     '<span class="badge' + (p.status === 'published' ? ' active' : '') + '">' + (p.status === 'published' ? 'Published' : 'Draft') + '</span> ' +
     (p.featured ? '<span class="badge active">Featured</span> ' : '') +
+    (stateLabel ? '<span class="muted">' + escapeHtml(stateLabel) + '</span> ' : '') +
     '<span class="muted">/blog/' + escapeHtml(p.slug) + '</span>' +
     '</div>' +
     '<p class="muted promotion-row-body">' + escapeHtml(p.excerpt) + '</p>' +
@@ -291,24 +298,105 @@ function blogRowHtml(p) {
     '</div></div>';
 }
 
+// Kind pills, same pattern/markup as renderPricingKindFilterPills() -- counts respect the current
+// status filter too, so switching status doesn't leave a stale count on the kind row.
+function renderBlogKindFilterPills() {
+  var statusScoped = blogCache.filter(function (p) { return !blogStatusFilter || p.status === blogStatusFilter; });
+  var kindLabel = {};
+  blogCategoriesCache.forEach(function (c) { kindLabel[c.slug] = c.label; });
+  var kinds = [];
+  statusScoped.forEach(function (p) { if (p.kind && kinds.indexOf(p.kind) === -1) kinds.push(p.kind); });
+  kinds.sort(function (a, b) { return (kindLabel[a] || a).localeCompare(kindLabel[b] || b); });
+  var options = [['', 'All Categories (' + statusScoped.length + ')']].concat(kinds.map(function (k) {
+    var count = statusScoped.filter(function (p) { return p.kind === k; }).length;
+    return [k, (kindLabel[k] || k) + ' (' + count + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by category">' +
+    options.map(function (o) {
+      var active = blogKindFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-blog-kind" data-kind="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+function renderBlogStatusFilterPills() {
+  var kindScoped = blogCache.filter(function (p) { return !blogKindFilter || p.kind === blogKindFilter; });
+  var options = [
+    ['', 'All (' + kindScoped.length + ')'],
+    ['published', 'Published (' + kindScoped.filter(function (p) { return p.status === 'published'; }).length + ')'],
+    ['draft', 'Draft (' + kindScoped.filter(function (p) { return p.status === 'draft'; }).length + ')'],
+  ];
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by status">' +
+    options.map(function (o) {
+      var active = blogStatusFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-blog-status" data-status="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+// Same "toggle inline style on already-rendered nodes" approach as updatePricingRowVisibility() --
+// re-rendering 323 cards from data on every keystroke would be wasteful and would drop focus from
+// the search input.
+function updateBlogRowVisibility() {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#blog-rows-wrap [data-row-key]'));
+  var q = blogFilterQuery.trim().toLowerCase();
+  var matchCount = 0, shown = 0;
+  rows.forEach(function (row) {
+    var matchesText = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
+    var matchesKind = !blogKindFilter || row.dataset.kind === blogKindFilter;
+    var matchesStatus = !blogStatusFilter || row.dataset.status === blogStatusFilter;
+    var matches = matchesText && matchesKind && matchesStatus;
+    if (matches) matchCount++;
+    var visible = matches && (blogRowsExpanded || shown < BLOG_COLLAPSED_COUNT);
+    row.style.display = visible ? '' : 'none';
+    if (visible) shown++;
+  });
+  var toggleBtn = document.getElementById('blog-show-all-toggle');
+  if (!toggleBtn) return;
+  if (matchCount <= BLOG_COLLAPSED_COUNT) {
+    toggleBtn.style.display = 'none';
+  } else {
+    toggleBtn.style.display = '';
+    toggleBtn.textContent = blogRowsExpanded ? 'Show fewer ▴' : 'Show all ' + matchCount + ' ▾';
+  }
+  var emptyMsg = document.getElementById('blog-empty-filtered');
+  if (emptyMsg) emptyMsg.style.display = matchCount === 0 ? '' : 'none';
+}
+
+function filterBlogRows(query) {
+  blogFilterQuery = query;
+  blogRowsExpanded = false; // fresh filter, start collapsed again rather than carry over stale expand state
+  updateBlogRowVisibility();
+}
+
 async function renderBlog() {
   appEl.innerHTML = renderTabs('blog') + '<p>Loading…</p>';
   var results = await Promise.all([apiFetch('/console/blog'), apiFetch('/console/category-content')]);
   blogCache = results[0].posts;
   blogCategoriesCache = results[1].categories;
+  blogKindFilter = '';
+  blogStatusFilter = '';
+  blogFilterQuery = '';
+  blogRowsExpanded = false;
   drawBlog();
 }
 
 function drawBlog() {
   var rows = blogCache.map(blogRowHtml).join('');
-  var empty = blogCache.length ? '' : '<p class="muted">No articles yet.</p>';
   var addButton = blogFormState ? '' : '<button class="btn-primary btn-sm" type="button" data-act="add-blog">+ Add article</button>';
   appEl.innerHTML = renderTabs('blog') +
     '<p class="muted page-intro-text">Educational articles for the public site\'s /blog. Publishing here goes live immediately -- no ' +
     'code deploy needed. New/edited articles get real SEO meta and a sitemap.xml entry on the next daily regen run (or run ' +
     '`node scripts/generate-seo-meta.js` in the site repo manually for an immediate update).</p>' +
     '<div class="card"><div id="blog-form-wrap">' + blogFormHtml() + '</div>' + addButton + '</div>' +
-    empty + rows;
+    (blogCache.length ? '<div class="settings-filter-pills-row" id="blog-kind-filter-wrap">' + renderBlogKindFilterPills() + '</div>' +
+      '<div class="settings-filter-pills-row" id="blog-status-filter-wrap">' + renderBlogStatusFilterPills() + '</div>' +
+      '<input type="search" class="settings-filter-input" id="blog-search-input" placeholder="Filter articles by title, slug, or state…" value="' + escapeHtml(blogFilterQuery) + '">' +
+      '<p class="muted" id="blog-empty-filtered" style="display:none">No articles match this filter.</p>' +
+      '<div id="blog-rows-wrap">' + rows + '</div>' +
+      '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="blog-show-all-toggle" data-act="toggle-blog-rows">Show all</button>'
+      : '<p class="muted">No articles yet.</p>');
+  updateBlogRowVisibility();
 }
 
 // ---- Codes ----------------------------------------------------------------
@@ -2681,6 +2769,25 @@ appEl.addEventListener('click', async function (e) {
     if (!confirm('Delete this article? This cannot be undone.')) return;
     await apiFetch('/console/blog/delete', { method: 'POST', body: { id: el.getAttribute('data-id') } });
     renderBlog();
+  } else if (act === 'filter-blog-kind') {
+    var newBlogKindFilter = el.getAttribute('data-kind');
+    if (newBlogKindFilter === blogKindFilter) return;
+    blogKindFilter = newBlogKindFilter;
+    blogRowsExpanded = false;
+    document.getElementById('blog-kind-filter-wrap').innerHTML = renderBlogKindFilterPills();
+    document.getElementById('blog-status-filter-wrap').innerHTML = renderBlogStatusFilterPills(); // its counts depend on the kind filter too
+    updateBlogRowVisibility();
+  } else if (act === 'filter-blog-status') {
+    var newBlogStatusFilter = el.getAttribute('data-status');
+    if (newBlogStatusFilter === blogStatusFilter) return;
+    blogStatusFilter = newBlogStatusFilter;
+    blogRowsExpanded = false;
+    document.getElementById('blog-status-filter-wrap').innerHTML = renderBlogStatusFilterPills();
+    document.getElementById('blog-kind-filter-wrap').innerHTML = renderBlogKindFilterPills(); // its counts depend on the status filter too
+    updateBlogRowVisibility();
+  } else if (act === 'toggle-blog-rows') {
+    blogRowsExpanded = !blogRowsExpanded;
+    updateBlogRowVisibility();
   } else if (act === 'review-refund-claim') {
     var claimId = el.getAttribute('data-claim-id');
     var reviewStatus = el.getAttribute('data-status');
@@ -3048,6 +3155,7 @@ appEl.addEventListener('input', function (e) {
     return;
   }
   if (e.target.id === 'codes-search-input') { codesFilterQuery = e.target.value; updateCodesRowVisibility(); return; }
+  if (e.target.id === 'blog-search-input') { filterBlogRows(e.target.value); return; }
   if (e.target.classList.contains('settings-filter-input')) { filterPricingRows(e.target.value); return; }
   if (e.target.hasAttribute('data-original')) updateSettingsDirtyState(e.target);
 });
