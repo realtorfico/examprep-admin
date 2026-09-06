@@ -269,6 +269,7 @@ function blogFormHtml() {
     '<label>SEO title (optional — falls back to Title)<input type="text" name="seoTitle" value="' + escapeHtml(p.seo_title || '') + '"></label>' +
     '<label>SEO description (optional — falls back to Excerpt)<textarea name="seoDescription" rows="2">' + escapeHtml(p.seo_description || '') + '</textarea></label>' +
     '<label class="promotion-active-toggle"><input type="checkbox" name="published"' + (p.status === 'published' ? ' checked' : '') + '> Published (unchecked = draft, not visible on the site)</label>' +
+    '<label class="promotion-active-toggle"><input type="checkbox" name="featured"' + (p.featured ? ' checked' : '') + '> Featured (sorts above other posts, gets distinct styling — for posts more directly actionable for an exam-taker, e.g. state-specific practice-test guides)</label>' +
     '<div class="progress-reset-actions">' +
     '<button class="btn-primary" type="submit">Save</button>' +
     '<button class="btn-secondary" type="button" data-act="cancel-blog-form">Cancel</button>' +
@@ -280,6 +281,7 @@ function blogRowHtml(p) {
     '<div class="promotion-row-top">' +
     '<strong>' + escapeHtml(p.title) + '</strong> ' +
     '<span class="badge' + (p.status === 'published' ? ' active' : '') + '">' + (p.status === 'published' ? 'Published' : 'Draft') + '</span> ' +
+    (p.featured ? '<span class="badge active">Featured</span> ' : '') +
     '<span class="muted">/blog/' + escapeHtml(p.slug) + '</span>' +
     '</div>' +
     '<p class="muted promotion-row-body">' + escapeHtml(p.excerpt) + '</p>' +
@@ -2542,6 +2544,7 @@ appEl.addEventListener('submit', async function (e) {
       seoTitle: bf.seoTitle.value.trim() || undefined,
       seoDescription: bf.seoDescription.value.trim() || undefined,
       status: bf.published.checked ? 'published' : 'draft',
+      featured: bf.featured.checked,
     };
     try {
       await apiFetch('/console/blog/upsert', { method: 'POST', body: body });
