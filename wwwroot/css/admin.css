@@ -229,6 +229,7 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
    sortable, and filterable by eye, just visually deprioritized against real human traffic. */
 .visitor-row-bot { opacity: 0.55; }
 .visitor-referrer-cell { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.visitor-reached-buy-yes { color: var(--correct); font-weight: 600; }
 .settings-saved-flash.visible { opacity: 1; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; align-items: start; }
