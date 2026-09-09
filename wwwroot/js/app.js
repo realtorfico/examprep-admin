@@ -2212,11 +2212,11 @@ var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'duration_sec', 'first_seen_a
 // the Codes table -- to keep this already-wide table's default view scannable. Still present in
 // visitorDetailModalHtml() below, not dropped.
 var VISITORS_COLUMNS = [
+  ['reachedBuy', 'Reached Buy'], ['page_count', 'Pages Viewed'], ['landing_path', 'Landing Page'],
   ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
   ['ip_address', 'IP Address'], ['country', 'Country'], ['region', 'Region'], ['city', 'City'], ['timezone', 'Timezone'],
   ['device_type', 'Device'], ['browser', 'Browser'], ['os', 'OS'], ['is_bot', 'Bot?'],
   ['referrer', 'Referrer'],
-  ['landing_path', 'Landing Page'], ['page_count', 'Pages Viewed'], ['reachedBuy', 'Reached Buy'],
 ];
 
 var VISITORS_DATE_PRESETS = [['all', 'All Time'], ['today', 'Today'], ['7d', 'Last 7 Days'], ['30d', 'Last 30 Days'], ['custom', 'Custom Range']];
@@ -2353,6 +2353,9 @@ function drawVisitorsTable() {
     try { pages = JSON.parse(v.pages_json || '[]'); } catch (e) { pages = []; }
     return '<tr' + (v.is_bot ? ' class="visitor-row-bot"' : '') + '>' +
       '<td><button class="btn-secondary btn-sm" data-act="open-visitor-detail" data-session-id="' + escapeHtml(v.session_id || '') + '">Details</button></td>' +
+      '<td>' + (v.reachedBuy ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
+      '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
+      '<td>' + escapeHtml(v.landing_path || '—') + '</td>' +
       '<td>' + fmtDate(v.last_seen_at) + '</td><td>' + fmtDate(v.first_seen_at) + '</td>' +
       '<td>' + formatDuration(v.duration_sec) + '</td>' +
       '<td>' + escapeHtml(v.ip_address || '—') + '</td>' +
@@ -2361,9 +2364,6 @@ function drawVisitorsTable() {
       '<td>' + escapeHtml(v.device_type || '—') + '</td><td>' + escapeHtml(v.browser || '—') + '</td>' +
       '<td>' + escapeHtml(v.os || '—') + '</td><td>' + (v.is_bot ? 'Yes' : 'No') + '</td>' +
       '<td class="visitor-referrer-cell" title="' + escapeHtml(v.referrer || '') + '">' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</td>' +
-      '<td>' + escapeHtml(v.landing_path || '—') + '</td>' +
-      '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
-      '<td>' + (v.reachedBuy ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
       '</tr>';
   }).join('');
   container.innerHTML = '<div class="settings-table-scroll"><table><thead id="visitors-table-head">' +
