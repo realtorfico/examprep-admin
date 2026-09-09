@@ -204,9 +204,15 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 .settings-bankpct-low, .settings-bankpct-low td { color: var(--correct); font-weight: 600; }
 /* Exam Qs/Duration/Pass Score/Min Correct on a track with "Exam Req? No" -- these describe our own
    self-set practice mock-exam benchmark, not a real state requirement (see the row-building comment
-   in app.js). Italicized + a lower opacity so it visibly reads as "not the same kind of fact" as
-   the other columns, at a glance, without needing to hover the tooltip every time. */
-.settings-practice-only { font-style: italic; opacity: 0.7; cursor: help; }
+   in app.js). Italic+opacity alone read as "slightly faded real data" rather than "a different kind
+   of fact" when scanning a dense table -- a background tint makes the distinction visible without
+   requiring the hover tooltip. Amber rather than --correct/--incorrect since this isn't a
+   good/bad signal, just "not the same kind of number as its neighbors." */
+.settings-practice-only {
+  font-style: italic; opacity: 0.85; cursor: help;
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #f59e0b 30%, transparent);
+}
 /* 7 columns wide once Questions/Exam Qs/Duration/Pass Score are all showing -- scrolls inside its
    own box on narrow viewports instead of forcing the whole page to scroll horizontally. */
 .settings-table-scroll { overflow-x: auto; }

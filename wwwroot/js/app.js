@@ -1716,7 +1716,7 @@ async function renderTracks() {
     '<section class="card settings-edit-group" data-group="pricing">' +
     '<div class="settings-edit-toolbar">' +
     '<div><h3>Course pricing</h3><p class="muted page-intro-text">Price shown to buyers on the public site\'s self-serve purchase flow, in USD. ' +
-    'For a track marked "Exam Req? No," Exam Qs/Duration/Pass Score/Min Correct (shown italicized below) describe this site\'s own self-set practice mock-exam benchmark, not a real state requirement -- the real state has no graded exam for that track.</p></div>' +
+    'For a track marked "Exam Req? No," Exam Qs/Duration/Pass Score/Min Correct (highlighted amber below) describe this site\'s own self-set practice mock-exam benchmark, not a real state requirement -- the real state has no graded exam for that track.</p></div>' +
     settingsSaveButton('save-pricing-changes', 'pricing', 'Save changes') +
     '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
