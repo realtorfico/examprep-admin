@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['issues', 'Issue Reports'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -776,7 +776,7 @@ function closeCodeDetail() {
   if (backdrop) backdrop.remove();
 }
 
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeCodeDetail(); closeVisitorDetail(); } });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeCodeDetail(); closeVisitorDetail(); closeIssueDetail(); } });
 
 // ---- Questions --------------------------------------------------------
 
@@ -2584,6 +2584,92 @@ async function renderTestimonials() {
   drawTestimonialsTable();
 }
 
+// ---- Issue reports (site-wide "report an issue" widget submissions) -------
+// Same list+filter+status-action shape as Testimonials above, but a triage queue rather than a
+// moderation queue: open -> resolved (fixed) or dismissed (spam/not-actionable), not a publish
+// decision. Default filter is 'open' so the tab opens straight to what needs attention.
+
+var issuesCache = [];
+var issuesStatusFilter = 'open'; // '' = all; else 'open' | 'resolved' | 'dismissed'
+
+function issuesFilterPillsHtml() {
+  var order = ['open', 'resolved', 'dismissed'];
+  var counts = {};
+  issuesCache.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
+  var options = [['', 'All (' + issuesCache.length + ')']].concat(order.map(function (s) {
+    return [s, s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by status">' +
+    options.map(function (o) {
+      var active = issuesStatusFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-issues-status" data-status="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+function drawIssuesTable() {
+  var container = document.getElementById('issues-table-container');
+  if (!container) return;
+  var rows = issuesCache.filter(function (t) { return !issuesStatusFilter || t.status === issuesStatusFilter; });
+  if (!rows.length) { container.innerHTML = '<p class="muted">No issue reports in this filter.</p>'; return; }
+  var body = rows.map(function (t) {
+    var actions = t.status === 'open'
+      ? '<button class="btn-secondary btn-sm" data-act="update-issue-status" data-id="' + t.id + '" data-status="resolved">Resolve</button> ' +
+        '<button class="btn-secondary btn-sm" data-act="update-issue-status" data-id="' + t.id + '" data-status="dismissed">Dismiss</button>'
+      : '<span class="badge ' + (t.status === 'resolved' ? 'active' : 'revoked') + '">' + t.status + '</span>';
+    return '<tr>' +
+      '<td>' + new Date(t.created_at * 1000).toLocaleDateString() + '</td>' +
+      '<td class="visitor-referrer-cell" title="' + escapeHtml(t.description) + '">' +
+      '<a href="#" data-act="open-issue-detail" data-id="' + t.id + '">' + escapeHtml(t.description) + '</a></td>' +
+      '<td>' + (t.page_url ? '<span class="visitor-referrer-cell" title="' + escapeHtml(t.page_url) + '">' + escapeHtml(t.page_url) + '</span>' : '—') + '</td>' +
+      '<td>' + (t.email ? escapeHtml(t.email) : '—') + '</td>' +
+      '<td>' + actions + '</td></tr>';
+  }).join('');
+  container.innerHTML = '<div class="settings-table-scroll"><table><thead><tr><th>Reported</th><th>Description</th><th>Page</th><th>Email</th><th></th></tr></thead>' +
+    '<tbody>' + body + '</tbody></table></div>';
+}
+
+function issueDetailModalHtml(t) {
+  return '<div class="code-detail-modal-header"><h3>Issue report</h3>' +
+    '<button class="btn-secondary btn-sm" data-act="close-issue-detail">Close</button></div>' +
+    '<p><strong>Reported:</strong> ' + new Date(t.created_at * 1000).toLocaleString() + '</p>' +
+    '<p><strong>Description:</strong><br>' + escapeHtml(t.description).replace(/\n/g, '<br>') + '</p>' +
+    '<p><strong>Page:</strong> ' + (t.page_url ? escapeHtml(t.page_url) : '—') + '</p>' +
+    '<p><strong>Email:</strong> ' + (t.email ? escapeHtml(t.email) : '—') + '</p>' +
+    '<p><strong>Browser:</strong> ' + (t.user_agent ? escapeHtml(t.user_agent) : '—') + '</p>' +
+    '<p><strong>Status:</strong> ' + escapeHtml(t.status) +
+    (t.reviewed_by ? ' (by ' + escapeHtml(t.reviewed_by) + ')' : '') + '</p>';
+}
+
+function openIssueDetail(id) {
+  var t = issuesCache.filter(function (x) { return x.id === id; })[0];
+  if (!t) return;
+  var backdrop = document.createElement('div');
+  backdrop.className = 'code-detail-backdrop';
+  backdrop.id = 'issue-detail-backdrop';
+  backdrop.innerHTML = '<div class="code-detail-modal">' + issueDetailModalHtml(t) + '</div>';
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop || e.target.closest('[data-act="close-issue-detail"]')) closeIssueDetail();
+  });
+  document.body.appendChild(backdrop);
+}
+
+function closeIssueDetail() {
+  var backdrop = document.getElementById('issue-detail-backdrop');
+  if (backdrop) backdrop.remove();
+}
+
+async function renderIssues() {
+  appEl.innerHTML = renderTabs('issues') +
+    '<p class="muted page-intro-text">Issue reports submitted from the site\'s always-on "Report an issue" widget. Click a description for the full report.</p>' +
+    '<div id="issues-filter-wrap">' + issuesFilterPillsHtml() + '</div>' +
+    '<div id="issues-table-container"><p class="muted">Loading…</p></div>';
+  var data = await apiFetch('/console/issue-reports');
+  issuesCache = data.items || [];
+  document.getElementById('issues-filter-wrap').innerHTML = issuesFilterPillsHtml();
+  drawIssuesTable();
+}
+
 // ---- Affiliate partners (business, e.g. pre-licensing course providers) ---
 // Deliberately separate from the customer-facing referral/points system (see examprep-api's
 // schema.sql comment on affiliate_partners) -- a business partner relationship is a real
@@ -2666,6 +2752,7 @@ function route() {
   else if (view === 'promotions') renderPromotions();
   else if (view === 'visitors') renderVisitors();
   else if (view === 'testimonials') renderTestimonials();
+  else if (view === 'issues') renderIssues();
   else if (view === 'affiliates') renderAffiliates();
   else if (view === 'alerts') renderAlerts();
   else renderCodes();
@@ -3029,6 +3116,18 @@ appEl.addEventListener('click', async function (e) {
     testimonialsStatusFilter = el.getAttribute('data-status');
     document.getElementById('testimonials-filter-wrap').innerHTML = testimonialsFilterPillsHtml();
     drawTestimonialsTable();
+  } else if (act === 'filter-issues-status') {
+    issuesStatusFilter = el.getAttribute('data-status');
+    document.getElementById('issues-filter-wrap').innerHTML = issuesFilterPillsHtml();
+    drawIssuesTable();
+  } else if (act === 'open-issue-detail') {
+    e.preventDefault();
+    openIssueDetail(el.getAttribute('data-id'));
+  } else if (act === 'update-issue-status') {
+    await apiFetch('/console/issue-reports/status', {
+      method: 'POST', body: { id: el.getAttribute('data-id'), status: el.getAttribute('data-status') },
+    });
+    renderIssues();
   } else if (act === 'edit-track-mechanics') {
     openTrackMechanicsEdit(el.getAttribute('data-exam'));
   } else if (act === 'close-track-mechanics-edit') {
