@@ -2219,7 +2219,7 @@ var VISITORS_COLUMNS = [
   ['referrer', 'Referrer'],
 ];
 
-var VISITORS_DATE_PRESETS = [['all', 'All Time'], ['today', 'Today'], ['7d', 'Last 7 Days'], ['30d', 'Last 30 Days'], ['custom', 'Custom Range']];
+var VISITORS_DATE_PRESETS = [['all', 'All Time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', 'Last 7 Days'], ['30d', 'Last 30 Days'], ['custom', 'Custom Range']];
 
 function visitorsFilterBarHtml() {
   var presetPills = VISITORS_DATE_PRESETS.map(function (p) {
@@ -2266,6 +2266,10 @@ function visitorsFilterBarHtml() {
 function visitorsDateRangeForPreset(preset) {
   var nowSec = Math.floor(Date.now() / 1000);
   if (preset === 'today') return { from: Math.floor(new Date().setHours(0, 0, 0, 0) / 1000), to: nowSec };
+  if (preset === 'yesterday') {
+    var todayStart = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
+    return { from: todayStart - 86400, to: todayStart - 1 };
+  }
   if (preset === '7d') return { from: nowSec - 7 * 86400, to: nowSec };
   if (preset === '30d') return { from: nowSec - 30 * 86400, to: nowSec };
   return { from: null, to: null };
