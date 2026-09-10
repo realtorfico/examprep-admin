@@ -101,10 +101,16 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: u
   border-radius: 12px; padding: 1.1rem;
 }
 .visitors-summary-bar {
-  display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: center;
   padding: 0.7rem 1.1rem; margin-bottom: 0.75rem; font-size: 0.9rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
 }
 .visitors-summary-bar strong { color: var(--accent-hover); }
+.visitors-summary-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: center; }
+.visitors-summary-landing-row { gap: 0.4rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+.visitors-summary-pill {
+  background: var(--surface-3, var(--surface)); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.82rem;
+}
 .page-intro-text { max-width: 100ch; line-height: 1.6; }
 
 button, .btn {

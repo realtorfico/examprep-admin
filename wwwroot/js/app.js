@@ -2364,12 +2364,34 @@ function visitorsSummaryHtml(list) {
   var durations = list.map(function (v) { return v.duration_sec; }).filter(function (d) { return d != null; });
   var avgDuration = durations.length ? Math.round(durations.reduce(function (a, b) { return a + b; }, 0) / durations.length) : null;
   var avgPages = list.length ? Math.round((list.reduce(function (a, v) { return a + (v.page_count || 0); }, 0) / list.length) * 10) / 10 : 0;
+
+  // Landing-page breakdown, added 2026-09-10 at the user's request, right below the headline
+  // stats -- groups on the same cleaned path (landingPathDisplay, state suffix already stripped)
+  // shown in the table's Landing Page column, so the counts here always match what's below.
+  // Capped at the top 10 by count to keep this "brief" per the user's own framing; a long tail of
+  // one-off landing pages isn't worth listing individually here (still visible per-row below).
+  var landingCounts = {};
+  list.forEach(function (v) {
+    var p = v.landingPathDisplay || v.landing_path || '(unknown)';
+    landingCounts[p] = (landingCounts[p] || 0) + 1;
+  });
+  var landingEntries = Object.keys(landingCounts).map(function (p) { return [p, landingCounts[p]]; })
+    .sort(function (a, b) { return b[1] - a[1]; });
+  var landingTop = landingEntries.slice(0, 10);
+  var landingMoreCount = landingEntries.length - landingTop.length;
+  var landingPillsHtml = landingTop.map(function (e) {
+    return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1] + '</strong></span>';
+  }).join('') + (landingMoreCount > 0 ? '<span class="muted">+' + landingMoreCount + ' more</span>' : '');
+
   return '<div class="card visitors-summary-bar">' +
+    '<div class="visitors-summary-row">' +
     '<span><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
     '<span><strong>' + bots.toLocaleString() + '</strong> bots</span>' +
     '<span><strong>' + reachedBuy.toLocaleString() + '</strong> reached buy</span>' +
     '<span>Avg time on site: <strong>' + (avgDuration != null ? formatDuration(avgDuration) : '—') + '</strong></span>' +
     '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
+    '</div>' +
+    '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Landing pages:</span>' + landingPillsHtml + '</div>' +
     '</div>';
 }
 
