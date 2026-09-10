@@ -1301,10 +1301,11 @@ function renderQuizProgressUserGroup(u) {
     '</details>';
 }
 
-// Leaderboard -- top 3 by accuracy, top 3 by coverage, per track, built entirely from the same
-// quizProgressGroupsCache the "User progress" section above already has (no separate fetch needed,
-// unlike the public site which needs its own /leaderboard endpoint to avoid exposing every user's
-// data to a student's browser). Only users who've answered at least leaderboardMinQuestions
+// Leaderboard -- top 2 by accuracy, top 2 by coverage (reduced from top 3, 2026-09-10, mirroring
+// the public site's own reduction so the two stay in sync), per track, built entirely from the
+// same quizProgressGroupsCache the "User progress" section above already has (no separate fetch
+// needed, unlike the public site which needs its own /leaderboard endpoint to avoid exposing every
+// user's data to a student's browser). Only users who've answered at least leaderboardMinQuestions
 // qualify. Descending-only sort, no ascending direction.
 var leaderboardMinQuestions = 20; // overwritten from /console/quiz-progress
 var leaderboardSortKeyByTrack = {}; // examType -> 'accuracy' | 'coverage'
@@ -1322,8 +1323,8 @@ function groupLeaderboardByTrack(groups) {
   });
   return order.map(function (examType) {
     var users = byTrack[examType];
-    var topByAccuracy = users.slice().sort(function (a, b) { return b.accuracy - a.accuracy; }).slice(0, 3);
-    var topByCoverage = users.slice().sort(function (a, b) { return b.coverage - a.coverage; }).slice(0, 3);
+    var topByAccuracy = users.slice().sort(function (a, b) { return b.accuracy - a.accuracy; }).slice(0, 2);
+    var topByCoverage = users.slice().sort(function (a, b) { return b.coverage - a.coverage; }).slice(0, 2);
     var seenIds = {};
     var combined = topByAccuracy.concat(topByCoverage).filter(function (u) {
       if (seenIds[u.userId]) return false;
@@ -1336,8 +1337,8 @@ function groupLeaderboardByTrack(groups) {
 
 function leaderboardTrackTableHtml(track) {
   var key = leaderboardSortKeyByTrack[track.examType] || (leaderboardSortKeyByTrack[track.examType] = 'accuracy');
-  if (!track.users.length) return '<p class="muted">No one on this track has answered at least ' + leaderboardMinQuestions + ' questions yet.</p>';
-  var rows = track.users.slice().sort(function (a, b) { return b[key] - a[key]; }).slice(0, 3).map(function (u) {
+  if (!track.users.length) return '<p class="muted">No one on this track has answered a minimum set of questions yet.</p>';
+  var rows = track.users.slice().sort(function (a, b) { return b[key] - a[key]; }).slice(0, 2).map(function (u) {
     return '<tr><td>' + u.who + '</td><td>' + u.accuracy + '%</td><td>' + u.coverage + '%</td><td>' + u.total + '</td></tr>';
   }).join('');
   var arrow = function (k) { return key === k ? ' ▼' : ''; };
@@ -1503,8 +1504,8 @@ async function renderStats() {
     examEmpty + examUsersHtml + '</div>' +
     '</div>' +
     '<div class="stats-column"><h3>Leaderboard</h3>' +
-    '<p class="muted page-intro-text">Top 3 by accuracy and by coverage, per track, among users who\'ve answered at least ' +
-    leaderboardMinQuestions + ' questions.</p>' +
+    '<p class="muted page-intro-text">Top 2 by accuracy and by coverage, per track, among users who\'ve answered a minimum ' +
+    'set of questions.</p>' +
     leaderboardEmpty + leaderboardTracksHtml + '</div>' +
     '<div class="stats-column"><h3>Resource consumption</h3>' + resourceEmpty + resourceUsersHtml + '</div>';
   drawAccuracyTable();
