@@ -2346,11 +2346,37 @@ function formatDuration(sec) {
 }
 function fmtDate(ts) { return ts ? new Date(ts * 1000).toLocaleString() : '—'; }
 
+// Brief top-of-table summary, added 2026-09-10 at the user's request -- reflects whatever's
+// currently in the table (same date/country/region/duration/pages filters plus the client-side
+// "Reached Buy only" checkbox), not the sitewide total, so the numbers always agree with what's
+// visible below them.
+function visitorsSummaryHtml(list) {
+  if (!list.length) return '';
+  var bots = list.filter(function (v) { return v.is_bot; }).length;
+  var reachedBuy = list.filter(function (v) { return v.reachedBuy; }).length;
+  var durations = list.map(function (v) { return v.duration_sec; }).filter(function (d) { return d != null; });
+  var avgDuration = durations.length ? Math.round(durations.reduce(function (a, b) { return a + b; }, 0) / durations.length) : null;
+  var avgPages = list.length ? Math.round((list.reduce(function (a, v) { return a + (v.page_count || 0); }, 0) / list.length) * 10) / 10 : 0;
+  return '<div class="card visitors-summary-bar">' +
+    '<span><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
+    '<span><strong>' + bots.toLocaleString() + '</strong> bots</span>' +
+    '<span><strong>' + reachedBuy.toLocaleString() + '</strong> reached buy</span>' +
+    '<span>Avg time on site: <strong>' + (avgDuration != null ? formatDuration(avgDuration) : '—') + '</strong></span>' +
+    '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
+    '</div>';
+}
+
 function drawVisitorsTable() {
   var container = document.getElementById('visitors-table-container');
+  var summaryWrap = document.getElementById('visitors-summary-wrap');
   if (!container) return;
-  if (!visitorsCache.length) { container.innerHTML = '<p class="muted">No visitors recorded yet.</p>'; return; }
+  if (!visitorsCache.length) {
+    container.innerHTML = '<p class="muted">No visitors recorded yet.</p>';
+    if (summaryWrap) summaryWrap.innerHTML = '';
+    return;
+  }
   var filteredCache = visitorsFilters.reachedBuyOnly ? visitorsCache.filter(function (v) { return v.reachedBuy; }) : visitorsCache;
+  if (summaryWrap) summaryWrap.innerHTML = visitorsSummaryHtml(filteredCache);
   if (!filteredCache.length) { container.innerHTML = '<p class="muted">No visitors matched -- none reached the buy page in this range.</p>'; return; }
   var rows = sortTableRows(filteredCache, visitorsSort, VISITORS_NUMERIC_KEYS);
   var body = rows.map(function (v) {
@@ -2478,6 +2504,7 @@ async function renderVisitors() {
     '(visitor/session IDs, coordinates, UTM source/medium/campaign, and the full page-view journey). Add IPs below to keep your ' +
     'own traffic out of this table.</p>' +
     '<div id="visitors-filter-wrap">' + visitorsFilterBarHtml() + '</div>' +
+    '<div id="visitors-summary-wrap"></div>' +
     '<div id="visitors-table-container"><p class="muted">Loading…</p></div>' +
     '<div id="visitors-exclusions-wrap"></div>';
   if (!visitorsFacetsLoaded) {
