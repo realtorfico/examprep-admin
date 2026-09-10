@@ -487,7 +487,9 @@ function isoDateFromUnix(ts) {
 
 var CODES_COLUMNS = [['code', 'Code'], ['exam', 'Exam'], ['status', 'Status'], ['note', 'Note'], ['expires', 'Expires'],
   ['redeemed', 'Redeemed'], ['lastUsed', 'Last Used'], ['accuracy', 'Accuracy'], ['coverage', 'Coverage'], ['examCount', 'Mock Exams']];
-var CODES_CELL_INDEX = { code: 0, exam: 1, status: 2, note: 3, expires: 4, redeemed: 5, lastUsed: 6, accuracy: 7, coverage: 8, examCount: 9 };
+// Actions cell (Save/Details/Revoke) sits at index 1, right after Code -- moved there 2026-09-10
+// at the user's request, so every other data column shifted one position right.
+var CODES_CELL_INDEX = { code: 0, exam: 2, status: 3, note: 4, expires: 5, redeemed: 6, lastUsed: 7, accuracy: 8, coverage: 9, examCount: 10 };
 
 var codesSort = { key: 'lastUsed', dir: -1 }; // default: most recently used first
 
@@ -607,7 +609,11 @@ async function renderCodes() {
     var coverageCell = progress && progress.coveragePct != null ? progress.coveragePct + '%' : '—';
     var examCountCell = examCountByCode[c.code] || 0;
     var recentClass = c.last_used_at && c.last_used_at >= recentCutoff ? ' code-row-recent' : '';
-    return '<tr data-code="' + escapeHtml(c.code) + '" data-status="' + escapeHtml(c.status) + '" data-exam="' + escapeHtml(c.exam_type) + '" class="' + recentClass.trim() + '"><td>' + c.code + '</td><td>' + c.exam_type + '</td>' +
+    return '<tr data-code="' + escapeHtml(c.code) + '" data-status="' + escapeHtml(c.status) + '" data-exam="' + escapeHtml(c.exam_type) + '" class="' + recentClass.trim() + '"><td>' + c.code + '</td>' +
+      '<td><button class="btn-secondary btn-sm" data-act="save-code" data-code="' + escapeHtml(c.code) + '">Save</button> ' +
+      (c.status === 'redeemed' ? '<button class="btn-secondary btn-sm" data-act="open-code-detail" data-code="' + escapeHtml(c.code) + '">Details</button> ' : '') +
+      (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td>' +
+      '<td>' + c.exam_type + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
       '<td><input type="text" class="code-note-input" data-original="' + escapeHtml(c.note || '') + '" value="' + escapeHtml(c.note || '') + '"></td>' +
       '<td><input type="date" class="code-expires-input" data-original="' + expiresIso + '" value="' + expiresIso + '"></td>' +
@@ -615,10 +621,7 @@ async function renderCodes() {
       '<td class="settings-readonly-cell" data-ts="' + (c.last_used_at || 0) + '">' + (c.last_used_at ? new Date(c.last_used_at * 1000).toLocaleDateString() : '—') + '</td>' +
       '<td class="settings-readonly-cell">' + accuracyCell + '</td>' +
       '<td class="settings-readonly-cell">' + coverageCell + '</td>' +
-      '<td class="settings-readonly-cell">' + examCountCell + '</td>' +
-      '<td><button class="btn-secondary btn-sm" data-act="save-code" data-code="' + escapeHtml(c.code) + '">Save</button> ' +
-      (c.status === 'redeemed' ? '<button class="btn-secondary btn-sm" data-act="open-code-detail" data-code="' + escapeHtml(c.code) + '">Details</button> ' : '') +
-      (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td></tr>';
+      '<td class="settings-readonly-cell">' + examCountCell + '</td></tr>';
   }).join('');
 
   appEl.innerHTML = renderTabs('codes') +
@@ -637,7 +640,7 @@ async function renderCodes() {
     '<span id="codes-exam-filter-wrap">' + renderCodesExamFilterHtml(data.codes) + '</span>' +
     '<input type="search" class="questions-search-input" id="codes-search-input" placeholder="Search code or note…">' +
     '</div>' +
-    '<table><thead id="codes-table-head">' + sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</tr>', '<th></th></tr>') + '</thead>' +
+    '<table><thead id="codes-table-head">' + sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</th>', '</th><th></th>') + '</thead>' +
     '<tbody id="codes-rows-body">' + rows + '</tbody></table>';
   codesFilterQuery = '';
   applyCodesSortOrder();
@@ -3196,7 +3199,7 @@ appEl.addEventListener('click', async function (e) {
     if (codesSort.key === codesSortKey) codesSort.dir *= -1;
     else { codesSort.key = codesSortKey; codesSort.dir = 1; }
     applyCodesSortOrder();
-    document.getElementById('codes-table-head').innerHTML = sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</tr>', '<th></th></tr>');
+    document.getElementById('codes-table-head').innerHTML = sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</th>', '</th><th></th>');
     updateCodesRowVisibility(); // re-render replaced the header only, but filter state is on rows -- cheap to just reapply
   } else if (act === 'filter-codes-status') {
     codesStatusFilter = el.getAttribute('data-status');
