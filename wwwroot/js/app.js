@@ -2213,7 +2213,7 @@ var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'duration_sec', 'first_seen_a
 // the Codes table -- to keep this already-wide table's default view scannable. Still present in
 // visitorDetailModalHtml() below, not dropped.
 var VISITORS_COLUMNS = [
-  ['reachedBuy', 'Reached Buy'], ['page_count', 'Pages Viewed'], ['landing_path', 'Landing Page'], ['referrer', 'Referrer'],
+  ['reachedBuy', 'Reached Buy'], ['page_count', 'Pages Viewed'], ['landing_path', 'Landing Page'], ['landingState', 'Landing State'], ['referrer', 'Referrer'],
   ['region', 'Region'], ['city', 'City'],
   ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
   ['ip_address', 'IP Address'], ['country', 'Country'], ['timezone', 'Timezone'],
@@ -2335,6 +2335,13 @@ async function loadVisitors() {
     var pages;
     try { pages = JSON.parse(v.pages_json || '[]'); } catch (e) { pages = []; }
     v.reachedBuy = pages.some(function (p) { return p.indexOf('#/buy') !== -1; }) ? 1 : 0;
+    // Bare category landing pages (e.g. /cdl) carry a "?state=XX" suffix the site tags on client-
+    // side (see app.js's trackPageview) reflecting which state's content pickRepresentativeTrack()
+    // actually resolved -- pulled out here into its own field so it can be its own sortable column,
+    // separate from the (now visually cleaned) Landing Page path itself.
+    var stateMatch = /\?state=([A-Z]{2})$/.exec(v.landing_path || '');
+    v.landingState = stateMatch ? stateMatch[1] : '';
+    v.landingPathDisplay = stateMatch ? v.landing_path.slice(0, stateMatch.index) : v.landing_path;
   });
   drawVisitorsTable();
 }
@@ -2386,7 +2393,8 @@ function drawVisitorsTable() {
       '<td><button class="btn-secondary btn-sm" data-act="open-visitor-detail" data-session-id="' + escapeHtml(v.session_id || '') + '">Details</button></td>' +
       '<td>' + (v.reachedBuy ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
       '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
-      '<td>' + escapeHtml(v.landing_path || '—') + '</td>' +
+      '<td>' + escapeHtml(v.landingPathDisplay || v.landing_path || '—') + '</td>' +
+      '<td>' + (v.landingState ? escapeHtml(STATE_LABELS[v.landingState] || v.landingState) : '—') + '</td>' +
       '<td class="visitor-referrer-cell" title="' + escapeHtml(v.referrer || '') + '">' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</td>' +
       '<td>' + escapeHtml(v.region || '—') + '</td><td>' + escapeHtml(v.city || '—') + '</td>' +
       '<td>' + fmtDate(v.last_seen_at) + '</td><td>' + fmtDate(v.first_seen_at) + '</td>' +
