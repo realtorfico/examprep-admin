@@ -1471,12 +1471,33 @@ async function renderStats() {
   var leaderboardEmpty = quizProgressGroupsCache.length ? '' : '<p class="muted">No quiz activity yet.</p>';
 
   var funnelStages = funnel.stages || [];
+  // A/B testing infra, added 2026-09-10 -- funnel.variants is only non-empty once app.js's
+  // getExperimentVariant() has an actual live experiment wired up (nothing is yet); grouped by
+  // variant key so each experiment's own event breakdown is legible on its own, not one giant flat
+  // list mixing unrelated experiments together.
+  var funnelVariants = funnel.variants || [];
+  var variantGroups = {};
+  funnelVariants.forEach(function (v) {
+    if (!variantGroups[v.variant]) variantGroups[v.variant] = [];
+    variantGroups[v.variant].push(v);
+  });
+  var variantHtml = Object.keys(variantGroups).length
+    ? '<div class="card"><h3>A/B Test Variants</h3>' +
+      '<p class="muted page-intro-text">Event counts per variant, for whichever experiment is currently tagging traffic client-side.</p>' +
+      Object.keys(variantGroups).map(function (key) {
+        return '<p class="muted" style="margin-bottom:0.3rem"><strong>' + escapeHtml(key) + '</strong></p>' +
+          '<div class="code-detail-stat-grid" style="margin-bottom:1rem">' + variantGroups[key].map(function (v) {
+            return codeDetailStat(v.event_name, v.count);
+          }).join('') + '</div>';
+      }).join('')
+      + '</div>'
+    : '';
   var funnelHtml = funnelStages.length
     ? '<div class="card"><h3>Marketing Funnel (all-time)</h3>' +
       '<p class="muted page-intro-text">Independent stage totals, not a strict single path -- a visitor can skip straight to purchase without completing a sample quiz first.</p>' +
       '<div class="code-detail-stat-grid">' + funnelStages.map(function (st) {
         return codeDetailStat(st.label, st.count);
-      }).join('') + '</div></div>'
+      }).join('') + '</div></div>' + variantHtml
     : '';
 
   var waitlistItems = (waitlist.items || []).slice(0, 30); // already sorted by count desc server-side
