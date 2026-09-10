@@ -727,6 +727,7 @@ function codeDetailModalHtml(code, detail) {
 
     '<div class="code-detail-section"><h4>Timeline</h4><div class="code-detail-stat-grid">' +
     codeDetailStat('Redeemed', formatDate(detail.code.redeemed_at)) +
+    codeDetailStat('Exam date given', detail.user.exam_date || 'Not provided') +
     codeDetailStat('Last active', formatDate(detail.user.last_seen_at)) +
     codeDetailStat('Active span', activeSpanDays != null ? activeSpanDays + ' days' : '—') +
     codeDetailStat('First quiz activity', formatDate(detail.activity.firstActivityAt)) +
