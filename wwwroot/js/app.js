@@ -2339,8 +2339,14 @@ async function loadVisitors() {
     // side (see app.js's trackPageview) reflecting which state's content pickRepresentativeTrack()
     // actually resolved -- pulled out here into its own field so it can be its own sortable column,
     // separate from the (now visually cleaned) Landing Page path itself.
-    var stateMatch = /\?state=([A-Z]{2})$/.exec(v.landing_path || '');
+    // "&src=cookie" means a real pxq_state cookie (geolocation, or a past explicit pick) matched a
+    // track in that category; "fallback" means no usable cookie at all, and the state shown was
+    // just the first active track in registry order -- an outright guess. Same distinction
+    // categoryStateDetectedBannerHtml() already shows the visitor themselves (📍 vs ❓). Added
+    // 2026-09-10 so "why did this visitor see state X" is answerable straight from this table.
+    var stateMatch = /\?state=([A-Z]{2})(?:&src=(cookie|fallback))?$/.exec(v.landing_path || '');
     v.landingState = stateMatch ? stateMatch[1] : '';
+    v.landingStateSource = stateMatch ? (stateMatch[2] || '') : '';
     v.landingPathDisplay = stateMatch ? v.landing_path.slice(0, stateMatch.index) : v.landing_path;
   });
   drawVisitorsTable();
@@ -2416,7 +2422,10 @@ function drawVisitorsTable() {
       '<td>' + (v.reachedBuy ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
       '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
       '<td>' + escapeHtml(v.landingPathDisplay || v.landing_path || '—') + '</td>' +
-      '<td>' + (v.landingState ? escapeHtml(STATE_LABELS[v.landingState] || v.landingState) : '—') + '</td>' +
+      '<td>' + (v.landingState
+        ? escapeHtml(STATE_LABELS[v.landingState] || v.landingState) +
+          (v.landingStateSource === 'cookie' ? ' 📍' : v.landingStateSource === 'fallback' ? ' ❓' : '')
+        : '—') + '</td>' +
       '<td class="visitor-referrer-cell" title="' + escapeHtml(v.referrer || '') + '">' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</td>' +
       '<td>' + escapeHtml(v.region || '—') + '</td><td>' + escapeHtml(v.city || '—') + '</td>' +
       '<td>' + fmtDate(v.last_seen_at) + '</td><td>' + fmtDate(v.first_seen_at) + '</td>' +
@@ -2531,7 +2540,9 @@ async function renderVisitors() {
   appEl.innerHTML = renderTabs('visitors') +
     '<p class="muted page-intro-text">Every recorded browser session on the public site, newest activity first. Click any column ' +
     'header to sort. Hover a truncated cell (Referrer, Pages Viewed) for the full value, or click Details for the full picture ' +
-    '(visitor/session IDs, coordinates, UTM source/medium/campaign, and the full page-view journey). Add IPs below to keep your ' +
+    '(visitor/session IDs, coordinates, UTM source/medium/campaign, and the full page-view journey). Landing State only appears ' +
+    'when the landing page was a bare category page (e.g. /cdl, not /cdl/il) -- 📍 means the state shown was a real geolocation/' +
+    'cookie match, ❓ means no cookie matched anything and the state shown was just a fallback guess. Add IPs below to keep your ' +
     'own traffic out of this table.</p>' +
     '<div id="visitors-filter-wrap">' + visitorsFilterBarHtml() + '</div>' +
     '<div id="visitors-summary-wrap"></div>' +
