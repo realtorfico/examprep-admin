@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['issues', 'Issue Reports'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['issues', 'Issue Reports'], ['suggestions', 'Suggestions'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -2786,6 +2786,92 @@ async function renderIssues() {
   drawIssuesTable();
 }
 
+// ---- Suggestions ("let us know what you think", site-wide widget) --------------------
+// Cloned from the Issue Reports tab above, same list/filter/detail-modal pattern -- separate
+// table/review queue since a suggestion is an idea/opinion, not a bug to fix. Also fed by
+// examprep-api's automated sendSuggestionRequestEmails cron (10 days post-purchase, every real
+// buyer regardless of activity), not just organic widget submissions.
+
+var suggestionsCache = [];
+var suggestionsStatusFilter = 'open'; // '' = all; else 'open' | 'reviewed' | 'dismissed'
+
+function suggestionsFilterPillsHtml() {
+  var order = ['open', 'reviewed', 'dismissed'];
+  var counts = {};
+  suggestionsCache.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
+  var options = [['', 'All (' + suggestionsCache.length + ')']].concat(order.map(function (s) {
+    return [s, s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')'];
+  }));
+  return '<div class="settings-filter-pill" role="group" aria-label="Filter by status">' +
+    options.map(function (o) {
+      var active = suggestionsStatusFilter === o[0];
+      return '<button type="button" class="' + (active ? 'active' : '') + '" data-act="filter-suggestions-status" data-status="' + o[0] + '"' +
+        (active ? ' aria-current="true"' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+}
+
+function drawSuggestionsTable() {
+  var container = document.getElementById('suggestions-table-container');
+  if (!container) return;
+  var rows = suggestionsCache.filter(function (t) { return !suggestionsStatusFilter || t.status === suggestionsStatusFilter; });
+  if (!rows.length) { container.innerHTML = '<p class="muted">No suggestions in this filter.</p>'; return; }
+  var body = rows.map(function (t) {
+    var actions = t.status === 'open'
+      ? '<button class="btn-secondary btn-sm" data-act="update-suggestion-status" data-id="' + t.id + '" data-status="reviewed">Mark reviewed</button> ' +
+        '<button class="btn-secondary btn-sm" data-act="update-suggestion-status" data-id="' + t.id + '" data-status="dismissed">Dismiss</button>'
+      : '<span class="badge ' + (t.status === 'reviewed' ? 'active' : 'revoked') + '">' + t.status + '</span>';
+    return '<tr>' +
+      '<td>' + new Date(t.created_at * 1000).toLocaleDateString() + '</td>' +
+      '<td class="visitor-referrer-cell" title="' + escapeHtml(t.description) + '">' +
+      '<a href="#" data-act="open-suggestion-detail" data-id="' + t.id + '">' + escapeHtml(t.description) + '</a></td>' +
+      '<td>' + (t.page_url ? '<span class="visitor-referrer-cell" title="' + escapeHtml(t.page_url) + '">' + escapeHtml(t.page_url) + '</span>' : '—') + '</td>' +
+      '<td>' + (t.email ? escapeHtml(t.email) : '—') + '</td>' +
+      '<td>' + actions + '</td></tr>';
+  }).join('');
+  container.innerHTML = '<div class="settings-table-scroll"><table><thead><tr><th>Submitted</th><th>Description</th><th>Page</th><th>Email</th><th></th></tr></thead>' +
+    '<tbody>' + body + '</tbody></table></div>';
+}
+
+function suggestionDetailModalHtml(t) {
+  return '<div class="code-detail-modal-header"><h3>Suggestion</h3>' +
+    '<button class="btn-secondary btn-sm" data-act="close-suggestion-detail">Close</button></div>' +
+    '<p><strong>Submitted:</strong> ' + new Date(t.created_at * 1000).toLocaleString() + '</p>' +
+    '<p><strong>Description:</strong><br>' + escapeHtml(t.description).replace(/\n/g, '<br>') + '</p>' +
+    '<p><strong>Page:</strong> ' + (t.page_url ? escapeHtml(t.page_url) : '—') + '</p>' +
+    '<p><strong>Email:</strong> ' + (t.email ? escapeHtml(t.email) : '—') + '</p>' +
+    '<p><strong>Status:</strong> ' + escapeHtml(t.status) +
+    (t.reviewed_by ? ' (by ' + escapeHtml(t.reviewed_by) + ')' : '') + '</p>';
+}
+
+function openSuggestionDetail(id) {
+  var t = suggestionsCache.filter(function (x) { return x.id === id; })[0];
+  if (!t) return;
+  var backdrop = document.createElement('div');
+  backdrop.className = 'code-detail-backdrop';
+  backdrop.id = 'suggestion-detail-backdrop';
+  backdrop.innerHTML = '<div class="code-detail-modal">' + suggestionDetailModalHtml(t) + '</div>';
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop || e.target.closest('[data-act="close-suggestion-detail"]')) closeSuggestionDetail();
+  });
+  document.body.appendChild(backdrop);
+}
+
+function closeSuggestionDetail() {
+  var backdrop = document.getElementById('suggestion-detail-backdrop');
+  if (backdrop) backdrop.remove();
+}
+
+async function renderSuggestions() {
+  appEl.innerHTML = renderTabs('suggestions') +
+    '<p class="muted page-intro-text">Suggestions submitted from the site\'s "Let us know what you think" widget, plus replies to the automated 10-day post-purchase feedback email. Click a description for the full submission.</p>' +
+    '<div id="suggestions-filter-wrap">' + suggestionsFilterPillsHtml() + '</div>' +
+    '<div id="suggestions-table-container"><p class="muted">Loading…</p></div>';
+  var data = await apiFetch('/console/suggestions');
+  suggestionsCache = data.items || [];
+  document.getElementById('suggestions-filter-wrap').innerHTML = suggestionsFilterPillsHtml();
+  drawSuggestionsTable();
+}
+
 // ---- Affiliate partners (business, e.g. pre-licensing course providers) ---
 // Deliberately separate from the customer-facing referral/points system (see examprep-api's
 // schema.sql comment on affiliate_partners) -- a business partner relationship is a real
@@ -2869,6 +2955,7 @@ function route() {
   else if (view === 'visitors') renderVisitors();
   else if (view === 'testimonials') renderTestimonials();
   else if (view === 'issues') renderIssues();
+  else if (view === 'suggestions') renderSuggestions();
   else if (view === 'affiliates') renderAffiliates();
   else if (view === 'alerts') renderAlerts();
   else renderCodes();
@@ -3244,6 +3331,18 @@ appEl.addEventListener('click', async function (e) {
       method: 'POST', body: { id: el.getAttribute('data-id'), status: el.getAttribute('data-status') },
     });
     renderIssues();
+  } else if (act === 'filter-suggestions-status') {
+    suggestionsStatusFilter = el.getAttribute('data-status');
+    document.getElementById('suggestions-filter-wrap').innerHTML = suggestionsFilterPillsHtml();
+    drawSuggestionsTable();
+  } else if (act === 'open-suggestion-detail') {
+    e.preventDefault();
+    openSuggestionDetail(el.getAttribute('data-id'));
+  } else if (act === 'update-suggestion-status') {
+    await apiFetch('/console/suggestions/status', {
+      method: 'POST', body: { id: el.getAttribute('data-id'), status: el.getAttribute('data-status') },
+    });
+    renderSuggestions();
   } else if (act === 'edit-track-mechanics') {
     openTrackMechanicsEdit(el.getAttribute('data-exam'));
   } else if (act === 'close-track-mechanics-edit') {
