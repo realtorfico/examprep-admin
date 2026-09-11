@@ -2232,13 +2232,13 @@ var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', reg
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
-var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot', 'reachedBuy']);
+var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot', 'reachedBuy', 'purchased']);
 // Visitor ID, Session ID, Latitude, Longitude, and the 3 UTM columns moved into the per-row
 // Details modal (2026-08-31) -- same "less-critical columns behind a Details button" pattern as
 // the Codes table -- to keep this already-wide table's default view scannable. Still present in
 // visitorDetailModalHtml() below, not dropped.
 var VISITORS_COLUMNS = [
-  ['reachedBuy', 'Reached Buy'], ['page_count', 'Pages Viewed'], ['landing_path', 'Landing Page'], ['landingState', 'Landing State'], ['referrer', 'Referrer'],
+  ['reachedBuy', 'Reached Buy'], ['purchased', 'Purchased'], ['page_count', 'Pages Viewed'], ['landing_path', 'Landing Page'], ['landingState', 'Landing State'], ['referrer', 'Referrer'],
   ['region', 'Region'], ['city', 'City'],
   ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
   ['ip_address', 'IP Address'], ['country', 'Country'], ['timezone', 'Timezone'],
@@ -2392,6 +2392,7 @@ function visitorsSummaryHtml(list) {
   if (!list.length) return '';
   var bots = list.filter(function (v) { return v.is_bot; }).length;
   var reachedBuy = list.filter(function (v) { return v.reachedBuy; }).length;
+  var purchased = list.filter(function (v) { return v.purchased; }).length;
   var durations = list.map(function (v) { return v.duration_sec; }).filter(function (d) { return d != null; });
   var avgDuration = durations.length ? Math.round(durations.reduce(function (a, b) { return a + b; }, 0) / durations.length) : null;
   var avgPages = list.length ? Math.round((list.reduce(function (a, v) { return a + (v.page_count || 0); }, 0) / list.length) * 10) / 10 : 0;
@@ -2419,6 +2420,7 @@ function visitorsSummaryHtml(list) {
     '<span><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
     '<span><strong>' + bots.toLocaleString() + '</strong> bots</span>' +
     '<span><strong>' + reachedBuy.toLocaleString() + '</strong> reached buy</span>' +
+    '<span><strong>' + purchased.toLocaleString() + '</strong> purchased</span>' +
     '<span>Avg time on site: <strong>' + (avgDuration != null ? formatDuration(avgDuration) : '—') + '</strong></span>' +
     '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
     '</div>' +
@@ -2445,6 +2447,7 @@ function drawVisitorsTable() {
     return '<tr' + (v.is_bot ? ' class="visitor-row-bot"' : '') + '>' +
       '<td><button class="btn-secondary btn-sm" data-act="open-visitor-detail" data-session-id="' + escapeHtml(v.session_id || '') + '">Details</button></td>' +
       '<td>' + (v.reachedBuy ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
+      '<td>' + (v.purchased ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
       '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
       '<td>' + escapeHtml(v.landingPathDisplay || v.landing_path || '—') + '</td>' +
       '<td>' + (v.landingState
@@ -2508,6 +2511,8 @@ function visitorDetailModalHtml(v) {
     codeDetailStat('Last seen', fmtDate(v.last_seen_at)) +
     codeDetailStat('Time on site', formatDuration(v.duration_sec)) +
     codeDetailStat('Pages viewed', v.page_count) +
+    codeDetailStat('Reached buy page', v.reachedBuy ? 'Yes' : 'No') +
+    codeDetailStat('Purchased', v.purchased ? 'Yes' : 'No') +
     '</div></div>' +
 
     '<div class="code-detail-section"><h4>Page journey</h4>' +
