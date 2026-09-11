@@ -2501,6 +2501,12 @@ function visitorDetailModalHtml(v) {
     codeDetailStat('UTM Source', escapeHtml(v.utm_source || '—')) +
     codeDetailStat('UTM Medium', escapeHtml(v.utm_medium || '—')) +
     codeDetailStat('UTM Campaign', escapeHtml(v.utm_campaign || '—')) +
+    // Keyword-level attribution, added 2026-09-11 -- populated once the Google Ads campaign's
+    // Final URL suffix passes the {keyword}/{gclid} ValueTrack parameters. utm_term is the actual
+    // keyword text; gclid is a stronger signal a visit really came from a paid click at all, even
+    // if utm_term is ever missing/stripped.
+    codeDetailStat('Keyword (UTM Term)', escapeHtml(v.utm_term || '—')) +
+    codeDetailStat('Google Click ID', escapeHtml(v.gclid || '—')) +
     '</div>' +
     '<p class="muted" style="margin-top:0.6rem"><strong>Referrer:</strong> ' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</p>' +
     '<p class="muted"><strong>Landing page:</strong> ' + escapeHtml(v.landing_path || '—') + '</p>' +
