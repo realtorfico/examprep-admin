@@ -2232,13 +2232,13 @@ var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', reg
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
-var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot', 'reachedBuy', 'purchased']);
+var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'click_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot', 'reachedBuy', 'purchased']);
 // Visitor ID, Session ID, Latitude, Longitude, and the 3 UTM columns moved into the per-row
 // Details modal (2026-08-31) -- same "less-critical columns behind a Details button" pattern as
 // the Codes table -- to keep this already-wide table's default view scannable. Still present in
 // visitorDetailModalHtml() below, not dropped.
 var VISITORS_COLUMNS = [
-  ['reachedBuy', 'Reached Buy'], ['purchased', 'Purchased'], ['page_count', 'Pages Viewed'], ['landing_path', 'Landing Page'], ['landingState', 'Landing State'], ['referrer', 'Referrer'],
+  ['reachedBuy', 'Reached Buy'], ['purchased', 'Purchased'], ['page_count', 'Pages Viewed'], ['click_count', 'Clicks'], ['landing_path', 'Landing Page'], ['landingState', 'Landing State'], ['referrer', 'Referrer'],
   ['region', 'Region'], ['city', 'City'],
   ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
   ['ip_address', 'IP Address'], ['country', 'Country'], ['timezone', 'Timezone'],
@@ -2449,6 +2449,7 @@ function drawVisitorsTable() {
       '<td>' + (v.reachedBuy ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
       '<td>' + (v.purchased ? '<span class="visitor-reached-buy-yes">✅ Yes</span>' : '—') + '</td>' +
       '<td title="' + escapeHtml(pages.join(' → ')) + '">' + v.page_count + '</td>' +
+      '<td>' + (v.click_count || 0) + '</td>' +
       '<td>' + escapeHtml(v.landingPathDisplay || v.landing_path || '—') + '</td>' +
       '<td>' + (v.landingState
         ? escapeHtml(STATE_LABELS[v.landingState] || v.landingState) +
@@ -2523,6 +2524,7 @@ function visitorDetailModalHtml(v) {
     codeDetailStat('Last seen', fmtDate(v.last_seen_at)) +
     codeDetailStat('Time on site', formatDuration(v.duration_sec)) +
     codeDetailStat('Pages viewed', v.page_count) +
+    codeDetailStat('Clicks', v.click_count || 0) +
     codeDetailStat('Reached buy page', v.reachedBuy ? 'Yes' : 'No') +
     codeDetailStat('Purchased', v.purchased ? 'Yes' : 'No') +
     '</div></div>' +
