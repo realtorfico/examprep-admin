@@ -2487,6 +2487,11 @@ function visitorDetailModalHtml(v) {
     codeDetailStat('Session ID', escapeHtml(v.session_id || '—')) +
     codeDetailStat('IP Address', escapeHtml(v.ip_address || '—')) +
     codeDetailStat('Bot?', v.is_bot ? 'Yes' : 'No') +
+    // Distinct from the Bot? heuristic above -- that's a broad "looks automated" signal, true for
+    // both malicious traffic AND legitimate/beneficial crawlers alike (e.g. Applebot). This note
+    // only ever gets set manually, when a human has actually investigated and confirmed WHY a
+    // specific visit is deceptive/malicious, not just automated. Added 2026-09-11.
+    (v.bot_note ? codeDetailStat('Investigation Note', escapeHtml(v.bot_note)) : '') +
     '</div></div>' +
 
     '<div class="code-detail-section"><h4>Location</h4><div class="code-detail-stat-grid">' +
