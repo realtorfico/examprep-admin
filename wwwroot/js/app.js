@@ -2507,6 +2507,7 @@ function visitorDetailModalHtml(v) {
     // if utm_term is ever missing/stripped.
     codeDetailStat('Keyword (UTM Term)', escapeHtml(v.utm_term || '—')) +
     codeDetailStat('Google Click ID', escapeHtml(v.gclid || '—')) +
+    codeDetailStat('Ad Group ID (UTM Content)', escapeHtml(v.utm_content || '—')) +
     '</div>' +
     '<p class="muted" style="margin-top:0.6rem"><strong>Referrer:</strong> ' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</p>' +
     '<p class="muted"><strong>Landing page:</strong> ' + escapeHtml(v.landing_path || '—') + '</p>' +
