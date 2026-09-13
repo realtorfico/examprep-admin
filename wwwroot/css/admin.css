@@ -236,7 +236,16 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
    would drift out of alignment with a hardcoded sticky offset. z-index is higher on th than td so
    a sticky header cell still wins over a sticky body cell where they'd otherwise tie during
    scroll; both need an explicit background (matching the table's own) so scrolled-under content
-   doesn't show through. */
+   doesn't show through.
+   The plain `table` rule above sets `overflow: hidden` (to clip content to the rounded corners) --
+   that alone is enough to silently break position:sticky here, since ANY non-visible `overflow` on
+   an ancestor establishes it as the "nearest scroll container" for sticky purposes, even if that
+   ancestor itself never scrolls. With overflow:hidden left on the <table>, sticky cells compute
+   their stuck position relative to the table (which never moves within itself) instead of
+   .settings-table-scroll (which is the element that actually scrolls) -- so they just silently
+   never appear to stick. Overridden back to visible for these two tables only, so every other
+   table's corner-clipping is untouched. */
+.tracks-sticky-table, .visitors-sticky-table { overflow: visible; }
 .tracks-sticky-table th:nth-child(1), .tracks-sticky-table td:nth-child(1) {
   position: sticky; left: 0; width: 200px; min-width: 200px; max-width: 200px;
   background: var(--surface-2);
