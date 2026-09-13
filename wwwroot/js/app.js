@@ -2418,6 +2418,23 @@ function visitorsSummaryHtml(list) {
     return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1] + '</strong></span>';
   }).join('') + (landingMoreCount > 0 ? '<span class="muted">+' + landingMoreCount + ' more</span>' : '');
 
+  // Keyword (Google Ads utm_term ValueTrack) breakdown, same shape as the landing-page row above --
+  // added at the user's request so paid-search keyword volume is visible without opening every
+  // visitor's Details modal one at a time. "(no keyword)" buckets organic/direct/other traffic that
+  // never carried a utm_term at all, same fallback-bucket convention as landingCounts' '(unknown)'.
+  var keywordCounts = {};
+  list.forEach(function (v) {
+    var k = v.utm_term || '(no keyword)';
+    keywordCounts[k] = (keywordCounts[k] || 0) + 1;
+  });
+  var keywordEntries = Object.keys(keywordCounts).map(function (k) { return [k, keywordCounts[k]]; })
+    .sort(function (a, b) { return b[1] - a[1]; });
+  var keywordTop = keywordEntries.slice(0, 10);
+  var keywordMoreCount = keywordEntries.length - keywordTop.length;
+  var keywordPillsHtml = keywordTop.map(function (e) {
+    return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1] + '</strong></span>';
+  }).join('') + (keywordMoreCount > 0 ? '<span class="muted">+' + keywordMoreCount + ' more</span>' : '');
+
   return '<div class="card visitors-summary-bar">' +
     '<div class="visitors-summary-row">' +
     '<span><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
@@ -2427,6 +2444,7 @@ function visitorsSummaryHtml(list) {
     '<span>Avg time on site: <strong>' + (avgDuration != null ? formatDuration(avgDuration) : '—') + '</strong></span>' +
     '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
     '</div>' +
+    '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Keywords:</span>' + keywordPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Landing pages:</span>' + landingPillsHtml + '</div>' +
     '</div>';
 }
