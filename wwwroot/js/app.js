@@ -2241,7 +2241,7 @@ var visitorsExcludedIpsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
 // Default view: last 7 days, at least 60 seconds on site -- cuts out same-day bounce/bot noise so
 // the table opens on something worth looking at rather than every hit ever recorded.
-var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationSec: '60', maxDurationSec: '', minPages: '', maxPages: '', reachedBuyOnly: false, excludeBots: false };
+var VISITORS_DEFAULT_FILTERS = { preset: 'today', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationSec: '60', maxDurationSec: '', minPages: '', maxPages: '', reachedBuyOnly: false, excludeBots: false };
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
