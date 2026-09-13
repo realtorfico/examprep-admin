@@ -2458,28 +2458,22 @@ function visitorsSummaryHtml(list) {
     return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1] + '</strong></span>';
   }).join('') + (referrerMoreCount > 0 ? '<span class="muted">+' + referrerMoreCount + ' more</span>' : '');
 
-  // Organic-vs-paid traffic-source breakdown, added 2026-09-13 at the user's request, shown first
-  // among the breakdown rows (above Referrers/Keywords/Landing pages) since it's the top-level split
-  // the user asked for. Paid-ad signals are checked before the referrer's hostname so a paid click
-  // that still carries a search-engine referrer (e.g. a Google Ads click through google.com) isn't
-  // misclassified as organic search -- gclid is the stronger signal (survives even if utm_term/medium
-  // get stripped), so it's checked first, then a cpc/ppc/paid-style utm_medium.
+  // Paid-vs-non-paid traffic breakdown, added 2026-09-13 at the user's request -- simplified to just
+  // these two buckets per the user's own follow-up ("just expecting paid and non-paid"), shown first
+  // among the breakdown rows (above Referrers/Keywords/Landing pages). "Paid" = a Google Click ID
+  // (gclid, the stronger signal since it survives even if utm_term/medium get stripped) or a
+  // cpc/ppc/paid-style utm_medium; everything else (organic search, referral sites, direct) is
+  // "Non-Paid" -- the Referrers row right below already breaks non-paid traffic down further by
+  // source if that detail is ever needed.
   var PAID_UTM_MEDIUMS = ['cpc', 'ppc', 'paid', 'paidsearch', 'display', 'cpm'];
-  var SEARCH_ENGINE_HOSTS = ['google', 'bing', 'yahoo', 'duckduckgo', 'baidu', 'yandex', 'ecosia', 'startpage', 'aol'];
-  function classifyTrafficSource(v) {
-    if (v.gclid || PAID_UTM_MEDIUMS.indexOf((v.utm_medium || '').toLowerCase()) !== -1) return 'Paid Ads';
-    var domain = referrerDomain(v.referrer);
-    if (domain === 'Direct') return 'Direct';
-    var isSearchEngine = SEARCH_ENGINE_HOSTS.some(function (h) { return domain.indexOf(h) !== -1; });
-    return isSearchEngine ? 'Organic Search' : 'Referral';
+  function isPaidVisit(v) {
+    return !!(v.gclid || PAID_UTM_MEDIUMS.indexOf((v.utm_medium || '').toLowerCase()) !== -1);
   }
-  var TRAFFIC_SOURCE_ORDER = ['Organic Search', 'Paid Ads', 'Referral', 'Direct'];
-  var trafficSourceCounts = { 'Organic Search': 0, 'Paid Ads': 0, 'Referral': 0, 'Direct': 0 };
-  list.forEach(function (v) { trafficSourceCounts[classifyTrafficSource(v)]++; });
-  var trafficSourcePillsHtml = TRAFFIC_SOURCE_ORDER.map(function (label) {
-    var count = trafficSourceCounts[label];
-    var pct = list.length ? Math.round((count / list.length) * 100) : 0;
-    return '<span class="visitors-summary-pill">' + label + ' <strong>×' + count.toLocaleString() + '</strong> (' + pct + '%)</span>';
+  var paidCount = list.filter(isPaidVisit).length;
+  var nonPaidCount = list.length - paidCount;
+  var trafficSourcePillsHtml = [['Paid', paidCount], ['Non-Paid', nonPaidCount]].map(function (e) {
+    var pct = list.length ? Math.round((e[1] / list.length) * 100) : 0;
+    return '<span class="visitors-summary-pill">' + e[0] + ' <strong>×' + e[1].toLocaleString() + '</strong> (' + pct + '%)</span>';
   }).join('');
 
   return '<div class="card visitors-summary-bar">' +
