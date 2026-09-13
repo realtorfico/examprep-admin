@@ -2547,15 +2547,18 @@ async function loadAdWatchSummary() {
   var fromYesterday = Math.floor(yesterdayStart.getTime() / 1000);
   var toYesterday = Math.floor(todayStart.getTime() / 1000) - 1;
   var fromSince = Math.floor(new Date(AD_TRACKING_START_ISO + 'T00:00:00').getTime() / 1000);
+  // Same minDurationSec floor as the main table's current default (see the comment at the call site)
+  // so the two views can't disagree just because one applies a duration filter the other doesn't.
+  var minDurParam = visitorsFilters.minDurationSec ? '&minDurationSec=' + parseInt(visitorsFilters.minDurationSec, 10) : '';
   try {
     var results = await Promise.all([
-      apiFetch('/console/visitors?from=' + fromYesterday + '&to=' + toYesterday),
-      apiFetch('/console/visitors?from=' + fromSince),
+      apiFetch('/console/visitors?from=' + fromYesterday + '&to=' + toYesterday + minDurParam),
+      apiFetch('/console/visitors?from=' + fromSince + minDurParam),
     ]);
     var yesterdayItems = (results[0].items || []).filter(function (v) { return !v.is_bot; });
     var cumulativeItems = (results[1].items || []).filter(function (v) { return !v.is_bot; });
     wrap.innerHTML = '<div class="card visitors-summary-bar">' +
-      '<div class="visitors-summary-row"><strong>Ad Watch</strong> <span class="muted">— for deciding whether to keep the ads running</span></div>' +
+      '<div class="visitors-summary-row"><strong>Ad Watch</strong> <span class="muted">— for deciding whether to keep the ads running (min duration: ' + (visitorsFilters.minDurationSec || 0) + 's, same as the table below)</span></div>' +
       adWatchRowHtml('Yesterday (' + yesterdayStart.toLocaleDateString() + ')', adWatchSummarize(yesterdayItems)) +
       adWatchRowHtml('Cumulative since ' + AD_TRACKING_START_ISO, adWatchSummarize(cumulativeItems)) +
       '</div>';
@@ -2729,7 +2732,6 @@ async function renderVisitors() {
     '<div id="visitors-summary-wrap"></div>' +
     '<div id="visitors-table-container"><p class="muted">Loading…</p></div>' +
     '<div id="visitors-exclusions-wrap"></div>';
-  loadAdWatchSummary();
   if (!visitorsFacetsLoaded) {
     try {
       var facetsAndSettings = await Promise.all([
@@ -2746,6 +2748,12 @@ async function renderVisitors() {
     visitorsFacetsLoaded = true;
     document.getElementById('visitors-filter-wrap').innerHTML = visitorsFilterBarHtml();
   }
+  // Fired only after visitorsFilters.minDurationSec is settled (from the app_settings fetch just
+  // above, or a prior tab visit this session) so Ad Watch applies the SAME minimum-duration floor as
+  // the main table's current default -- otherwise the two would disagree on what counts as "real"
+  // traffic (this exact mismatch happened once already: the table's configured default is 1 second,
+  // not this file's hardcoded 60s fallback, and Ad Watch originally applied no duration floor at all).
+  loadAdWatchSummary();
   drawVisitorExclusionsCard();
   await loadVisitors();
 }
