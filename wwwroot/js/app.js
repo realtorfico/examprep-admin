@@ -1752,7 +1752,7 @@ async function renderTracks() {
     '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks (e.g. by state)…">' +
-    '<div class="settings-table-scroll"><table class="settings-edit-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing').replace('</tr>', '<th></th></tr>') + '</thead>' +
+    '<div class="settings-table-scroll"><table class="settings-edit-table tracks-sticky-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing').replace('</tr>', '<th></th></tr>') + '</thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
     '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
     '</section>';
@@ -2611,7 +2611,7 @@ function drawVisitorsTable() {
       '<td>' + escapeHtml(v.os || '—') + '</td><td>' + (v.is_bot ? 'Yes' : 'No') + '</td>' +
       '</tr>';
   }).join('');
-  container.innerHTML = '<div class="settings-table-scroll"><table><thead id="visitors-table-head">' +
+  container.innerHTML = '<div class="settings-table-scroll"><table class="visitors-sticky-table"><thead id="visitors-table-head">' +
     sortableHeaderRow(VISITORS_COLUMNS, visitorsSort, 'sort-visitors').replace('<tr>', '<tr><th></th>') + '</thead><tbody>' + body + '</tbody></table></div>';
 }
 
