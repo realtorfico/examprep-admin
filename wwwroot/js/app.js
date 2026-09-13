@@ -1562,7 +1562,7 @@ var PRICING_COLLAPSED_COUNT = 7;
 var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
-var pricingHideNonRequired = false; // true = hide tracks with no real state exam (Exam Req: No)
+var pricingHideNonRequired = true; // true = hide tracks with no real state exam (Exam Req: No) -- defaults on
 var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['resources', 'Resources'], ['kind', 'Category'], ['state', 'State'], ['examReq', 'Exam Req?'],
   ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
 var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, resources: 3, kind: 4, state: 5, examReq: 6, questions: 7, examQs: 8, bankPct: 9, duration: 10, passScore: 11, minCorrect: 12 };
