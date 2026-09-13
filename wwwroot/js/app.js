@@ -2238,6 +2238,14 @@ var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
 var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'click_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot', 'reachedBuy', 'purchased']);
+// Shared paid-vs-non-paid classification, used by both the Traffic source summary row (below) and
+// the Ad Watch card -- kept in one place so the two views can never silently disagree on what
+// counts as "Paid". gclid is checked first since it's the stronger signal (survives even if
+// utm_term/medium get stripped); a cpc/ppc/paid-style utm_medium is the fallback signal.
+var PAID_UTM_MEDIUMS = ['cpc', 'ppc', 'paid', 'paidsearch', 'display', 'cpm'];
+function isPaidVisit(v) {
+  return !!(v.gclid || PAID_UTM_MEDIUMS.indexOf((v.utm_medium || '').toLowerCase()) !== -1);
+}
 // Visitor ID, Session ID, Latitude, Longitude, and the 3 UTM columns moved into the per-row
 // Details modal (2026-08-31) -- same "less-critical columns behind a Details button" pattern as
 // the Codes table -- to keep this already-wide table's default view scannable. Still present in
@@ -2466,12 +2474,9 @@ function visitorsSummaryHtml(list) {
   // get stripped) or a cpc/ppc/paid-style utm_medium. Within Non-Paid: a search-engine referrer
   // hostname is "Organic Search", any other referrer is "Referral", no referrer at all is "Direct".
   // The Non-Paid sub-row's percentages are of the Non-Paid subtotal, not the overall visitor count,
-  // since they describe the composition of that group specifically.
-  var PAID_UTM_MEDIUMS = ['cpc', 'ppc', 'paid', 'paidsearch', 'display', 'cpm'];
+  // since they describe the composition of that group specifically. isPaidVisit() itself is the
+  // shared top-level helper (see VISITORS_NUMERIC_KEYS above) so this always agrees with Ad Watch.
   var SEARCH_ENGINE_HOSTS = ['google', 'bing', 'yahoo', 'duckduckgo', 'baidu', 'yandex', 'ecosia', 'startpage', 'aol'];
-  function isPaidVisit(v) {
-    return !!(v.gclid || PAID_UTM_MEDIUMS.indexOf((v.utm_medium || '').toLowerCase()) !== -1);
-  }
   function classifyNonPaidSource(v) {
     var domain = referrerDomain(v.referrer);
     if (domain === 'Direct') return 'Direct';
@@ -2508,6 +2513,55 @@ function visitorsSummaryHtml(list) {
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Keywords:</span>' + keywordPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Landing pages:</span>' + landingPillsHtml + '</div>' +
     '</div>';
+}
+
+// Ad Watch card, added 2026-09-13 at the user's request -- a fixed reference block showing
+// yesterday's and the cumulative-since-tracking-went-live Paid/Non-Paid split, independent of
+// whatever date-range/filters are currently applied to the main table below. The point is to give a
+// stable day-over-day read to decide when to discontinue the ads, without the user having to
+// manually flip the date picker to "yesterday" or back to the campaign's start every time. Bots are
+// excluded here (unlike the main Traffic source row above, which reflects whatever's in the
+// currently-filtered table) since a bot can never be a paid click and including them would overstate
+// Non-Paid's real share -- exactly the distortion that caused confusion the first time this was
+// checked (bots were ~67% of "Non-Paid" in the original, unfiltered analysis).
+var AD_TRACKING_START_ISO = '2026-09-11'; // date gclid/utm_medium=cpc capture actually went live -- see schema.sql
+function adWatchSummarize(items) {
+  var paid = items.filter(isPaidVisit).length;
+  var total = items.length;
+  var nonPaid = total - paid;
+  var paidPct = total ? Math.round((paid / total) * 100) : 0;
+  return { paid: paid, nonPaid: nonPaid, total: total, paidPct: paidPct, nonPaidPct: total ? 100 - paidPct : 0 };
+}
+function adWatchRowHtml(label, s) {
+  return '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">' + label + ':</span>' +
+    '<span class="visitors-summary-pill">Paid <strong>×' + s.paid.toLocaleString() + '</strong> (' + s.paidPct + '%)</span>' +
+    '<span class="visitors-summary-pill">Non-Paid <strong>×' + s.nonPaid.toLocaleString() + '</strong> (' + s.nonPaidPct + '%)</span>' +
+    '<span class="muted">' + s.total.toLocaleString() + ' total (bots excluded)</span></div>';
+}
+async function loadAdWatchSummary() {
+  var wrap = document.getElementById('visitors-adwatch-wrap');
+  if (!wrap) return;
+  var now = new Date();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var yesterdayStart = new Date(todayStart.getTime() - 86400000);
+  var fromYesterday = Math.floor(yesterdayStart.getTime() / 1000);
+  var toYesterday = Math.floor(todayStart.getTime() / 1000) - 1;
+  var fromSince = Math.floor(new Date(AD_TRACKING_START_ISO + 'T00:00:00').getTime() / 1000);
+  try {
+    var results = await Promise.all([
+      apiFetch('/console/visitors?from=' + fromYesterday + '&to=' + toYesterday),
+      apiFetch('/console/visitors?from=' + fromSince),
+    ]);
+    var yesterdayItems = (results[0].items || []).filter(function (v) { return !v.is_bot; });
+    var cumulativeItems = (results[1].items || []).filter(function (v) { return !v.is_bot; });
+    wrap.innerHTML = '<div class="card visitors-summary-bar">' +
+      '<div class="visitors-summary-row"><strong>Ad Watch</strong> <span class="muted">— for deciding whether to keep the ads running</span></div>' +
+      adWatchRowHtml('Yesterday (' + yesterdayStart.toLocaleDateString() + ')', adWatchSummarize(yesterdayItems)) +
+      adWatchRowHtml('Cumulative since ' + AD_TRACKING_START_ISO, adWatchSummarize(cumulativeItems)) +
+      '</div>';
+  } catch (e) {
+    wrap.innerHTML = '<p class="muted">Ad Watch failed to load.</p>';
+  }
 }
 
 function drawVisitorsTable() {
@@ -2670,10 +2724,12 @@ async function renderVisitors() {
     'when the landing page was a bare category page (e.g. /cdl, not /cdl/il) -- 📍 means the state shown was a real geolocation/' +
     'cookie match, ❓ means no cookie matched anything and the state shown was just a fallback guess. Add IPs below to keep your ' +
     'own traffic out of this table.</p>' +
+    '<div id="visitors-adwatch-wrap"><p class="muted">Loading Ad Watch…</p></div>' +
     '<div id="visitors-filter-wrap">' + visitorsFilterBarHtml() + '</div>' +
     '<div id="visitors-summary-wrap"></div>' +
     '<div id="visitors-table-container"><p class="muted">Loading…</p></div>' +
     '<div id="visitors-exclusions-wrap"></div>';
+  loadAdWatchSummary();
   if (!visitorsFacetsLoaded) {
     try {
       var facetsAndSettings = await Promise.all([
