@@ -2437,6 +2437,27 @@ function visitorsSummaryHtml(list) {
     return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1] + '</strong></span>';
   }).join('') + (keywordMoreCount > 0 ? '<span class="muted">+' + keywordMoreCount + ' more</span>' : '');
 
+  // Referrer breakdown, same shape again -- grouped by hostname (not the full raw URL, which would
+  // fragment identical sources across differing query strings/paths) so e.g. every google.com visit
+  // counts as one bucket. Empty referrer buckets as "Direct", same fallback convention as the other
+  // two rows; an unparseable referrer value falls back to its raw string rather than being dropped.
+  function referrerDomain(url) {
+    if (!url) return 'Direct';
+    try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url; }
+  }
+  var referrerCounts = {};
+  list.forEach(function (v) {
+    var d = referrerDomain(v.referrer);
+    referrerCounts[d] = (referrerCounts[d] || 0) + 1;
+  });
+  var referrerEntries = Object.keys(referrerCounts).map(function (k) { return [k, referrerCounts[k]]; })
+    .sort(function (a, b) { return b[1] - a[1]; });
+  var referrerTop = referrerEntries.slice(0, 10);
+  var referrerMoreCount = referrerEntries.length - referrerTop.length;
+  var referrerPillsHtml = referrerTop.map(function (e) {
+    return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1] + '</strong></span>';
+  }).join('') + (referrerMoreCount > 0 ? '<span class="muted">+' + referrerMoreCount + ' more</span>' : '');
+
   return '<div class="card visitors-summary-bar">' +
     '<div class="visitors-summary-row">' +
     '<span><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
@@ -2446,6 +2467,7 @@ function visitorsSummaryHtml(list) {
     '<span>Avg time on site: <strong>' + (avgDuration != null ? formatDuration(avgDuration) : '—') + '</strong></span>' +
     '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
     '</div>' +
+    '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Referrers:</span>' + referrerPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Keywords:</span>' + keywordPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Landing pages:</span>' + landingPillsHtml + '</div>' +
     '</div>';
