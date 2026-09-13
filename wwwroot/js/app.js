@@ -573,7 +573,9 @@ function updateCodesRowVisibility() {
     var matchesExam = !codesExamFilter || row.dataset.exam === codesExamFilter;
     var matchesText = !q ||
       row.children[CODES_CELL_INDEX.code].textContent.toLowerCase().indexOf(q) !== -1 ||
-      row.querySelector('.code-note-input').value.toLowerCase().indexOf(q) !== -1;
+      row.querySelector('.code-note-input').value.toLowerCase().indexOf(q) !== -1 ||
+      row.dataset.exam.toLowerCase().indexOf(q) !== -1 ||
+      trackLabelFor(row.dataset.exam).toLowerCase().indexOf(q) !== -1;
     row.style.display = (matchesStatus && matchesExam && matchesText) ? '' : 'none';
   });
 }
@@ -638,7 +640,7 @@ async function renderCodes() {
     '<div class="questions-toolbar">' +
     '<span id="codes-status-filter-wrap">' + renderCodesStatusFilterPills(data.codes) + '</span>' +
     '<span id="codes-exam-filter-wrap">' + renderCodesExamFilterHtml(data.codes) + '</span>' +
-    '<input type="search" class="questions-search-input" id="codes-search-input" placeholder="Search code or note…">' +
+    '<input type="search" class="questions-search-input" id="codes-search-input" placeholder="Search code, note, or exam…">' +
     '</div>' +
     '<table><thead id="codes-table-head">' + sortableHeaderRow(CODES_COLUMNS, codesSort, 'sort-codes').replace('</th>', '</th><th></th>') + '</thead>' +
     '<tbody id="codes-rows-body">' + rows + '</tbody></table>';
