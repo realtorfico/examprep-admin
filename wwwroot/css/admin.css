@@ -231,16 +231,16 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 /* 7 columns wide once Questions/Exam Qs/Duration/Pass Score are all showing -- scrolls inside its
    own box on narrow viewports instead of forcing the whole page to scroll horizontally. */
 .settings-table-scroll { overflow-x: auto; }
-/* Fixed leading column(s) while the rest of a wide table scrolls horizontally -- added at the
-   user's request for the Tracks (first 2 columns: Track name, Price) and Visitors (first column:
-   the Details button) tables specifically, not every .settings-table-scroll table, so this is
-   scoped to two dedicated classes on the <table> itself rather than the shared scroll-wrapper
-   class. Column widths are fixed (not just min-width) so the second sticky column's `left` offset
-   in .tracks-sticky-table stays correct regardless of cell content -- an auto-sized table column
-   would drift out of alignment with a hardcoded sticky offset. z-index is higher on th than td so
-   a sticky header cell still wins over a sticky body cell where they'd otherwise tie during
-   scroll; both need an explicit background (matching the table's own) so scrolled-under content
-   doesn't show through.
+/* Fixed leading column while the rest of a wide table scrolls horizontally -- added at the user's
+   request for the Tracks (first column: Track name) and Visitors (first column: the Details
+   button) tables specifically, not every .settings-table-scroll table, so this is scoped to two
+   dedicated classes on the <table> itself rather than the shared scroll-wrapper class. Tracks
+   originally had its first TWO columns (Track, Price) sticky, but that was cut back to just the
+   first column per a follow-up request (not enough width to spare for two fixed columns). Column
+   width is fixed (not just min-width) so the sticky cell's size doesn't shift as the table
+   scrolls. z-index is higher on th than td so a sticky header cell still wins over a sticky body
+   cell where they'd otherwise tie during scroll; both need an explicit background (matching the
+   table's own) so scrolled-under content doesn't show through.
    The plain `table` rule above sets `overflow: hidden` (to clip content to the rounded corners) --
    that alone is enough to silently break position:sticky here, since ANY non-visible `overflow` on
    an ancestor establishes it as the "nearest scroll container" for sticky purposes, even if that
@@ -253,14 +253,10 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 .tracks-sticky-table th:nth-child(1), .tracks-sticky-table td:nth-child(1) {
   position: sticky; left: 0; width: 200px; min-width: 200px; max-width: 200px;
   background: var(--surface-2);
-}
-.tracks-sticky-table th:nth-child(2), .tracks-sticky-table td:nth-child(2) {
-  position: sticky; left: 200px; width: 120px; min-width: 120px; max-width: 120px;
-  background: var(--surface-2);
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.25);
 }
-.tracks-sticky-table th:nth-child(1), .tracks-sticky-table th:nth-child(2) { z-index: 3; }
-.tracks-sticky-table td:nth-child(1), .tracks-sticky-table td:nth-child(2) { z-index: 2; }
+.tracks-sticky-table th:nth-child(1) { z-index: 3; }
+.tracks-sticky-table td:nth-child(1) { z-index: 2; }
 .visitors-sticky-table th:nth-child(1), .visitors-sticky-table td:nth-child(1) {
   position: sticky; left: 0; width: 90px; min-width: 90px; max-width: 90px;
   background: var(--surface-2);
