@@ -2233,7 +2233,7 @@ var visitorsExcludedIpsCache = [];
 var visitorsSort = { key: 'last_seen_at', dir: -1 }; // newest activity first by default
 // Default view: last 7 days, at least 60 seconds on site -- cuts out same-day bounce/bot noise so
 // the table opens on something worth looking at rather than every hit ever recorded.
-var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationSec: '60', maxDurationSec: '', minPages: '', maxPages: '', reachedBuyOnly: false };
+var VISITORS_DEFAULT_FILTERS = { preset: '7d', country: '', countryOp: 'eq', region: '', regionOp: 'eq', minDurationSec: '60', maxDurationSec: '', minPages: '', maxPages: '', reachedBuyOnly: false, excludeBots: false };
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
@@ -2296,6 +2296,8 @@ function visitorsFilterBarHtml() {
     '<input type="number" id="visitors-max-pages-input" placeholder="Max" min="0" style="width:4.5rem" value="' + escapeHtml(visitorsFilters.maxPages) + '">' +
     '<label class="muted" title="Client-side filter (checked against each visitor\'s already-loaded page journey) -- no re-fetch needed"><input type="checkbox" id="visitors-reached-buy-checkbox"' +
     (visitorsFilters.reachedBuyOnly ? ' checked' : '') + '> Reached Buy only</label>' +
+    '<label class="muted" title="Client-side filter against the already-loaded is_bot flag -- no re-fetch needed"><input type="checkbox" id="visitors-exclude-bots-checkbox"' +
+    (visitorsFilters.excludeBots ? ' checked' : '') + '> Exclude bots</label>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="apply-visitors-filters">Apply</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="reset-visitors-filters">Reset</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="save-visitors-min-duration-default" title="Save the current Min duration value as what this tab opens to next time">Save min as default</button>' +
@@ -2337,15 +2339,18 @@ function visitorsQueryString() {
   var minPagesInput = document.getElementById('visitors-min-pages-input');
   var maxPagesInput = document.getElementById('visitors-max-pages-input');
   var reachedBuyCheckbox = document.getElementById('visitors-reached-buy-checkbox');
+  var excludeBotsCheckbox = document.getElementById('visitors-exclude-bots-checkbox');
   visitorsFilters.country = countrySelect ? countrySelect.value : '';
   visitorsFilters.region = regionSelect ? regionSelect.value : '';
   visitorsFilters.minDurationSec = minInput ? minInput.value : '';
   visitorsFilters.maxDurationSec = maxInput ? maxInput.value : '';
   visitorsFilters.minPages = minPagesInput ? minPagesInput.value : '';
   visitorsFilters.maxPages = maxPagesInput ? maxPagesInput.value : '';
-  // Client-side only (checked against the already-loaded pages_json, see loadVisitors()) --
-  // doesn't become a query param, just read here alongside the rest for the same "Apply" flow.
+  // Client-side only (checked against the already-loaded pages_json / is_bot flag, see
+  // loadVisitors()) -- doesn't become a query param, just read here alongside the rest for the
+  // same "Apply" flow.
   visitorsFilters.reachedBuyOnly = reachedBuyCheckbox ? reachedBuyCheckbox.checked : false;
+  visitorsFilters.excludeBots = excludeBotsCheckbox ? excludeBotsCheckbox.checked : false;
   if (visitorsFilters.country) {
     params.push('country=' + encodeURIComponent(visitorsFilters.country));
     if (visitorsFilters.countryOp === 'ne') params.push('countryOp=ne');
@@ -2576,7 +2581,9 @@ function drawVisitorsTable() {
     if (summaryWrap) summaryWrap.innerHTML = '';
     return;
   }
-  var filteredCache = visitorsFilters.reachedBuyOnly ? visitorsCache.filter(function (v) { return v.reachedBuy; }) : visitorsCache;
+  var filteredCache = visitorsCache;
+  if (visitorsFilters.reachedBuyOnly) filteredCache = filteredCache.filter(function (v) { return v.reachedBuy; });
+  if (visitorsFilters.excludeBots) filteredCache = filteredCache.filter(function (v) { return !v.is_bot; });
   if (summaryWrap) summaryWrap.innerHTML = visitorsSummaryHtml(filteredCache);
   if (!filteredCache.length) { container.innerHTML = '<p class="muted">No visitors matched -- none reached the buy page in this range.</p>'; return; }
   var rows = sortTableRows(filteredCache, visitorsSort, VISITORS_NUMERIC_KEYS);
