@@ -1562,6 +1562,7 @@ var PRICING_COLLAPSED_COUNT = 7;
 var pricingRowsExpanded = false;
 var pricingFilterQuery = '';
 var pricingKindFilter = ''; // '' = All types; otherwise an EXAM_TYPES examKind (e.g. 'Driver')
+var pricingHideNonRequired = false; // true = hide tracks with no real state exam (Exam Req: No)
 var PRICING_COLUMNS = [['track', 'Track'], ['price', 'Price (USD)'], ['active', 'Active'], ['resources', 'Resources'], ['kind', 'Category'], ['state', 'State'], ['examReq', 'Exam Req?'],
   ['questions', 'Questions'], ['examQs', 'Exam Qs'], ['bankPct', '% of Bank'], ['duration', 'Duration'], ['passScore', 'Pass Score'], ['minCorrect', 'Min Correct']];
 var PRICING_CELL_INDEX = { track: 0, price: 1, active: 2, resources: 3, kind: 4, state: 5, examReq: 6, questions: 7, examQs: 8, bankPct: 9, duration: 10, passScore: 11, minCorrect: 12 };
@@ -1651,7 +1652,8 @@ function updatePricingRowVisibility() {
   rows.forEach(function (row) {
     var matchesText = !q || row.children[PRICING_CELL_INDEX.track].textContent.toLowerCase().indexOf(q) !== -1;
     var matchesCategory = !pricingKindFilter || row.dataset.kind === pricingKindFilter;
-    var matches = matchesText && matchesCategory;
+    var matchesRequired = !pricingHideNonRequired || row.dataset.examRequired === '1';
+    var matches = matchesText && matchesCategory && matchesRequired;
     if (matches) matchCount++;
     var visible = matches && (pricingRowsExpanded || shown < PRICING_COLLAPSED_COUNT);
     row.style.display = visible ? '' : 'none';
@@ -1728,7 +1730,7 @@ async function renderTracks() {
     // contradictory -- italicized + a tooltip carries the same disclosure into this table.
     var practiceOnlyAttrs = examRequired ? '' : ' class="muted settings-readonly-cell settings-practice-only" title="No real state exam exists for this track -- these are this site\'s own self-set practice mock-exam benchmark, not a state requirement."';
     var mockExamCellAttrs = examRequired ? ' class="muted settings-readonly-cell"' : practiceOnlyAttrs;
-    return '<tr class="' + bankPctRowClass + '" data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '"><td>' + label + '</td>' +
+    return '<tr class="' + bankPctRowClass + '" data-row-key="' + examType + '" data-state="' + stateCode + '" data-kind="' + examKind + '" data-exam-required="' + (examRequired ? '1' : '0') + '"><td>' + label + '</td>' +
       '<td>' +
       '<input type="number" step="0.01" min="0" class="price-input" data-exam="' + examType + '" data-original="' + dollars + '" value="' + dollars + '" placeholder="0.00">' +
       '</td><td><label class="rule-active-label"><input type="checkbox" class="track-active-input" data-exam="' + examType + '" data-original="' + trackActiveOriginal + '"' +
@@ -1756,6 +1758,8 @@ async function renderTracks() {
     '</div>' +
     '<div class="settings-filter-pills-row" id="pricing-kind-filter-wrap">' + renderPricingKindFilterPills() + '</div>' +
     '<input type="search" class="settings-filter-input" placeholder="Filter tracks (e.g. by state)…">' +
+    '<label class="muted"><input type="checkbox" id="pricing-hide-non-required-checkbox"' +
+    (pricingHideNonRequired ? ' checked' : '') + '> Hide non-exam-required tracks</label>' +
     '<div class="settings-table-scroll"><table class="settings-edit-table tracks-sticky-table"><thead id="pricing-table-head">' + sortableHeaderRow(PRICING_COLUMNS, pricingSort, 'sort-pricing').replace('</tr>', '<th></th></tr>') + '</thead>' +
     '<tbody id="pricing-rows-body">' + pricingRows + '</tbody></table></div>' +
     '<button class="btn-secondary btn-sm settings-table-toggle" type="button" id="pricing-show-all-toggle" data-act="toggle-pricing-rows">Show all</button>' +
@@ -3807,6 +3811,10 @@ appEl.addEventListener('change', function (e) {
   if (e.target.id === 'codes-exam-select') {
     codesExamFilter = e.target.value;
     updateCodesRowVisibility();
+  }
+  if (e.target.id === 'pricing-hide-non-required-checkbox') {
+    pricingHideNonRequired = e.target.checked;
+    updatePricingRowVisibility();
   }
 });
 
