@@ -213,6 +213,10 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 .settings-readonly-cell { text-align: right; white-space: nowrap; }
 .settings-bankpct-high, .settings-bankpct-high td { color: var(--incorrect); font-weight: 600; }
 .settings-bankpct-low, .settings-bankpct-low td { color: var(--correct); font-weight: 600; }
+/* Non-required tracks (no real state exam) grayed out uniformly on the Tracks table, regardless of
+   bank %/category -- same opacity-based convention as .visitor-row-bot. Opacity set on the <tr>
+   only (not also on its td cells) since layering it on both would compound the transparency. */
+.settings-track-not-required { opacity: 0.55; }
 /* Exam Qs/Duration/Pass Score/Min Correct on a track with "Exam Req? No" -- these describe our own
    self-set practice mock-exam benchmark, not a real state requirement (see the row-building comment
    in app.js). Italic+opacity alone read as "slightly faded real data" rather than "a different kind

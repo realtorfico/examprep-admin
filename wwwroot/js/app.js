@@ -1707,14 +1707,18 @@ async function renderTracks() {
     var bankPct = questionCount > 0 ? (examConfig.questionCount / questionCount * 100) : null;
     var bankPctLabel = bankPct !== null ? bankPct.toFixed(1) + '%' : '—';
     var examRequired = registryRow.isExamRequired !== false;
+    // A non-required track (no real state exam -- Exam Qs/Duration/etc. are just this site's own
+    // self-set practice benchmark) is grayed out uniformly, regardless of its bank-depth % or
+    // category, per the user's 2026-09-13 request -- the red/green bank-health highlighting below
+    // is about real exam risk, which doesn't apply to a track with no real exam to be at risk for.
     // Bold red is reserved for the actual risk case: a thin practice bank (>20% of the pool drawn
-    // per sitting, i.e. below the project's 5:1 pool-to-draw aspirational target) AND a real,
-    // state-required exam -- a low-stakes/no-exam-required track with the same thin-bank ratio
-    // isn't worth flagging the same way (2026-09-12: raised from the prior 4:1/25% hard-floor
-    // threshold to the 5:1 aspirational one, per user request). Non-required tracks keep the
-    // original 4:1-based green "healthy bank" cutoff unchanged -- only required tracks' red
-    // threshold moved.
-    var bankPctRowClass = bankPct === null ? '' : (bankPct > 20 && examRequired ? 'settings-bankpct-high' : (bankPct <= 25 ? 'settings-bankpct-low' : ''));
+    // per sitting, i.e. below the project's 5:1 pool-to-draw aspirational target) on a real,
+    // state-required exam (2026-09-12: raised from the prior 4:1/25% hard-floor threshold to the
+    // 5:1 aspirational one, per user request). The green "healthy bank" cutoff (<=25%, on the
+    // older 4:1 threshold) still applies to required tracks only now that non-required ones are
+    // grayed out instead.
+    var bankPctRowClass = !examRequired ? 'settings-track-not-required'
+      : (bankPct === null ? '' : (bankPct > 20 ? 'settings-bankpct-high' : (bankPct <= 25 ? 'settings-bankpct-low' : '')));
     // Exam Qs/Duration/Pass Score/Min Correct are populated for EVERY track, including ones with
     // "Exam Req? No" -- those numbers aren't fake or a data error, they're the self-set benchmark
     // for this site's own practice mock-exam feature (which we still offer even when the real state
