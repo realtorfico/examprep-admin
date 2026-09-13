@@ -2458,22 +2458,39 @@ function visitorsSummaryHtml(list) {
     return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1] + '</strong></span>';
   }).join('') + (referrerMoreCount > 0 ? '<span class="muted">+' + referrerMoreCount + ' more</span>' : '');
 
-  // Paid-vs-non-paid traffic breakdown, added 2026-09-13 at the user's request -- simplified to just
-  // these two buckets per the user's own follow-up ("just expecting paid and non-paid"), shown first
-  // among the breakdown rows (above Referrers/Keywords/Landing pages). "Paid" = a Google Click ID
-  // (gclid, the stronger signal since it survives even if utm_term/medium get stripped) or a
-  // cpc/ppc/paid-style utm_medium; everything else (organic search, referral sites, direct) is
-  // "Non-Paid" -- the Referrers row right below already breaks non-paid traffic down further by
-  // source if that detail is ever needed.
+  // Paid-vs-non-paid traffic breakdown, added 2026-09-13 at the user's request -- top-level split is
+  // just Paid/Non-Paid ("just expecting paid and non-paid"), with a second row breaking Non-Paid back
+  // down into Organic Search / Referral / Direct so that distribution is visible without collapsing
+  // it entirely ("group them up under non-paid and still show the distribution within that group").
+  // "Paid" = a Google Click ID (gclid, the stronger signal since it survives even if utm_term/medium
+  // get stripped) or a cpc/ppc/paid-style utm_medium. Within Non-Paid: a search-engine referrer
+  // hostname is "Organic Search", any other referrer is "Referral", no referrer at all is "Direct".
+  // The Non-Paid sub-row's percentages are of the Non-Paid subtotal, not the overall visitor count,
+  // since they describe the composition of that group specifically.
   var PAID_UTM_MEDIUMS = ['cpc', 'ppc', 'paid', 'paidsearch', 'display', 'cpm'];
+  var SEARCH_ENGINE_HOSTS = ['google', 'bing', 'yahoo', 'duckduckgo', 'baidu', 'yandex', 'ecosia', 'startpage', 'aol'];
   function isPaidVisit(v) {
     return !!(v.gclid || PAID_UTM_MEDIUMS.indexOf((v.utm_medium || '').toLowerCase()) !== -1);
   }
+  function classifyNonPaidSource(v) {
+    var domain = referrerDomain(v.referrer);
+    if (domain === 'Direct') return 'Direct';
+    var isSearchEngine = SEARCH_ENGINE_HOSTS.some(function (h) { return domain.indexOf(h) !== -1; });
+    return isSearchEngine ? 'Organic Search' : 'Referral';
+  }
   var paidCount = list.filter(isPaidVisit).length;
-  var nonPaidCount = list.length - paidCount;
+  var nonPaidList = list.filter(function (v) { return !isPaidVisit(v); });
+  var nonPaidCount = nonPaidList.length;
   var trafficSourcePillsHtml = [['Paid', paidCount], ['Non-Paid', nonPaidCount]].map(function (e) {
     var pct = list.length ? Math.round((e[1] / list.length) * 100) : 0;
     return '<span class="visitors-summary-pill">' + e[0] + ' <strong>×' + e[1].toLocaleString() + '</strong> (' + pct + '%)</span>';
+  }).join('');
+  var nonPaidSourceCounts = { 'Organic Search': 0, 'Referral': 0, 'Direct': 0 };
+  nonPaidList.forEach(function (v) { nonPaidSourceCounts[classifyNonPaidSource(v)]++; });
+  var nonPaidSourcePillsHtml = ['Organic Search', 'Referral', 'Direct'].map(function (label) {
+    var count = nonPaidSourceCounts[label];
+    var pct = nonPaidCount ? Math.round((count / nonPaidCount) * 100) : 0;
+    return '<span class="visitors-summary-pill">' + label + ' <strong>×' + count.toLocaleString() + '</strong> (' + pct + '%)</span>';
   }).join('');
 
   return '<div class="card visitors-summary-bar">' +
@@ -2486,6 +2503,7 @@ function visitorsSummaryHtml(list) {
     '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
     '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Traffic source:</span>' + trafficSourcePillsHtml + '</div>' +
+    '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Non-Paid breakdown:</span>' + nonPaidSourcePillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Referrers:</span>' + referrerPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Keywords:</span>' + keywordPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Landing pages:</span>' + landingPillsHtml + '</div>' +
