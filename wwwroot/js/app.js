@@ -2245,7 +2245,7 @@ var VISITORS_DEFAULT_FILTERS = { preset: 'today', country: '', countryOp: 'eq', 
 var visitorsFilters = Object.assign({}, VISITORS_DEFAULT_FILTERS);
 var visitorsFacets = { countries: [], regions: [] };
 var visitorsFacetsLoaded = false;
-var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'click_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot', 'reachedBuy', 'purchased']);
+var VISITORS_NUMERIC_KEYS = new Set(['page_count', 'click_count', 'duration_sec', 'first_seen_at', 'last_seen_at', 'is_bot', 'reachedBuy', 'purchased', 'isPaid']);
 // Shared paid-vs-non-paid classification, used by both the Traffic source summary row (below) and
 // the Ad Watch card -- kept in one place so the two views can never silently disagree on what
 // counts as "Paid". gclid is checked first since it's the stronger signal (survives even if
@@ -2260,7 +2260,7 @@ function isPaidVisit(v) {
 // visitorDetailModalHtml() below, not dropped.
 var VISITORS_COLUMNS = [
   ['reachedBuy', 'Reached Buy'], ['purchased', 'Purchased'], ['page_count', 'Pages Viewed'], ['click_count', 'Clicks'], ['landing_path', 'Landing Page'], ['landingState', 'Landing State'], ['referrer', 'Referrer'],
-  ['region', 'Region'], ['city', 'City'],
+  ['isPaid', 'Traffic'], ['region', 'Region'], ['city', 'City'],
   ['last_seen_at', 'Last Seen'], ['first_seen_at', 'First Seen'], ['duration_sec', 'Time on Site'],
   ['ip_address', 'IP Address'], ['country', 'Country'], ['timezone', 'Timezone'],
   ['device_type', 'Device'], ['browser', 'Browser'], ['os', 'OS'], ['is_bot', 'Bot?'],
@@ -2386,6 +2386,9 @@ async function loadVisitors() {
     var pages;
     try { pages = JSON.parse(v.pages_json || '[]'); } catch (e) { pages = []; }
     v.reachedBuy = pages.some(function (p) { return p.indexOf('#/buy') !== -1; }) ? 1 : 0;
+    // Same isPaidVisit() classifier the Traffic Source summary row and Ad Watch card already use,
+    // precomputed here so the per-row Traffic column can never disagree with those aggregates.
+    v.isPaid = isPaidVisit(v) ? 1 : 0;
     // Bare category landing pages (e.g. /cdl) carry a "?state=XX" suffix the site tags on client-
     // side (see app.js's trackPageview) reflecting which state's content pickRepresentativeTrack()
     // actually resolved -- pulled out here into its own field so it can be its own sortable column,
@@ -2610,6 +2613,7 @@ function drawVisitorsTable() {
           (v.landingStateSource === 'cookie' ? ' 📍' : v.landingStateSource === 'fallback' ? ' ❓' : '')
         : '—') + '</td>' +
       '<td class="visitor-referrer-cell" title="' + escapeHtml(v.referrer || '') + '">' + (v.referrer ? escapeHtml(v.referrer) : 'Direct') + '</td>' +
+      '<td>' + (v.isPaid ? '<span class="visitor-reached-buy-yes">💰 Paid</span>' : '—') + '</td>' +
       '<td>' + escapeHtml(v.region || '—') + '</td><td>' + escapeHtml(v.city || '—') + '</td>' +
       '<td>' + fmtDate(v.last_seen_at) + '</td><td>' + fmtDate(v.first_seen_at) + '</td>' +
       '<td>' + formatDuration(v.duration_sec) + '</td>' +
