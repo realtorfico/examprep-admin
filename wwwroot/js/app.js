@@ -1891,6 +1891,11 @@ async function renderSettings() {
   var coveragePassPctVal = Number.isFinite(coveragePassPct) ? coveragePassPct : 50;
   var legislativeAlertMonths = parseInt(bySetting.legislative_alert_window_months, 10);
   var legislativeAlertMonthsVal = Number.isFinite(legislativeAlertMonths) ? legislativeAlertMonths : 2;
+  var topicPricePaddingPct = parseFloat(bySetting.topic_price_padding_pct);
+  var topicPricePaddingPctVal = Number.isFinite(topicPricePaddingPct) ? topicPricePaddingPct : 20;
+  var topicPriceMinCents = parseInt(bySetting.topic_price_min_cents, 10);
+  var topicPriceMinDollars = (Number.isFinite(topicPriceMinCents) ? topicPriceMinCents : 999) / 100;
+  var topicPriceMinDollarsVal = topicPriceMinDollars.toFixed(2);
 
   appEl.innerHTML = renderTabs('settings') +
     '<div class="settings-grid">' +
@@ -1915,6 +1920,18 @@ async function renderSettings() {
     '<div class="settings-inline-field"><label class="price-row-label">Notify buyers who purchased within the last (months)</label>' +
     '<input type="number" step="1" min="1" max="60" class="legislative-alert-months-input" data-original="' + legislativeAlertMonthsVal + '" value="' + legislativeAlertMonthsVal + '" placeholder="2">' +
     settingsSaveButton('save-legislative-alert-window', 'legislative-alerts', 'Save') +
+    '</div></section>' +
+
+    '<section class="card settings-edit-group" data-group="topic-pricing">' +
+    '<h3>À la carte topic pricing</h3>' +
+    '<p class="muted page-intro-text">Each topic\'s price = (full track price × its Key Breakdown %) × (1 + padding below), ' +
+    'rounded up to the next .99, never below the floor below. Padding keeps buying every topic separately always more ' +
+    'expensive than the full track (currently CA CDL only -- see the Buy-Page Leads-style rollout, track_key_breakdown).</p>' +
+    '<div class="settings-inline-field"><label class="price-row-label">Padding (%)</label>' +
+    '<input type="number" step="1" min="0" class="topic-price-padding-input" data-original="' + topicPricePaddingPctVal + '" value="' + topicPricePaddingPctVal + '" placeholder="20"></div>' +
+    '<div class="settings-inline-field"><label class="price-row-label">Minimum price ($)</label>' +
+    '<input type="number" step="0.01" min="0" class="topic-price-min-input" data-original="' + topicPriceMinDollarsVal + '" value="' + topicPriceMinDollarsVal + '" placeholder="9.99">' +
+    settingsSaveButton('save-topic-pricing', 'topic-pricing', 'Save') +
     '</div></section>' +
 
     '</div>';
@@ -3747,6 +3764,22 @@ appEl.addEventListener('click', async function (e) {
       alert('Enter a value between 1 and 60 months.'); return;
     }
     await apiFetch('/console/settings', { method: 'POST', body: { key: 'legislative_alert_window_months', value: String(legislativeAlertMonthsVal) } });
+    markSettingsGroupSaved(el);
+  } else if (act === 'save-topic-pricing') {
+    var topicPricePaddingInput = document.querySelector('.topic-price-padding-input');
+    var topicPriceMinInput = document.querySelector('.topic-price-min-input');
+    var topicPricePaddingVal = parseFloat(topicPricePaddingInput.value);
+    var topicPriceMinDollarsVal = parseFloat(topicPriceMinInput.value);
+    if (!Number.isFinite(topicPricePaddingVal) || topicPricePaddingVal < 0) { alert('Enter a padding percentage of 0 or more.'); return; }
+    if (!Number.isFinite(topicPriceMinDollarsVal) || topicPriceMinDollarsVal < 0) { alert('Enter a minimum price of $0 or more.'); return; }
+    var topicPriceSaves = [];
+    if (topicPricePaddingInput.value !== topicPricePaddingInput.dataset.original) {
+      topicPriceSaves.push(apiFetch('/console/settings', { method: 'POST', body: { key: 'topic_price_padding_pct', value: String(topicPricePaddingVal) } }));
+    }
+    if (topicPriceMinInput.value !== topicPriceMinInput.dataset.original) {
+      topicPriceSaves.push(apiFetch('/console/settings', { method: 'POST', body: { key: 'topic_price_min_cents', value: String(Math.round(topicPriceMinDollarsVal * 100)) } }));
+    }
+    await Promise.all(topicPriceSaves);
     markSettingsGroupSaved(el);
   } else if (act === 'save-refund-failure-pct') {
     var refundFailurePctInput = document.querySelector('.refund-failure-pct-input');
