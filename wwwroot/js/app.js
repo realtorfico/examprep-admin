@@ -2577,6 +2577,23 @@ function visitorsSummaryHtml(list) {
     return '<span class="visitors-summary-pill">' + label + ' <strong>×' + count.toLocaleString() + '</strong> (' + pct + '%)</span>';
   }).join('');
 
+  // Device-type breakdown (Mobile/Tablet/Desktop, parsed server-side from user_agent at capture
+  // time -- see site_visits.device_type), same pill shape as Traffic source above. Added at the
+  // user's request after sharing a real ~50/50 Windows-vs-iOS split among buy-page reachers --
+  // this makes that kind of read available for any filtered slice of the table (e.g. "Reached Buy
+  // only" checked) without having to eyeball/count the OS column row by row.
+  var deviceCounts = {};
+  list.forEach(function (v) {
+    var d = v.device_type || 'Unknown';
+    deviceCounts[d] = (deviceCounts[d] || 0) + 1;
+  });
+  var deviceEntries = Object.keys(deviceCounts).map(function (k) { return [k, deviceCounts[k]]; })
+    .sort(function (a, b) { return b[1] - a[1]; });
+  var devicePillsHtml = deviceEntries.map(function (e) {
+    var pct = list.length ? Math.round((e[1] / list.length) * 100) : 0;
+    return '<span class="visitors-summary-pill">' + escapeHtml(e[0]) + ' <strong>×' + e[1].toLocaleString() + '</strong> (' + pct + '%)</span>';
+  }).join('');
+
   return '<div class="card visitors-summary-bar">' +
     '<div class="visitors-summary-row">' +
     '<span><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
@@ -2586,6 +2603,7 @@ function visitorsSummaryHtml(list) {
     '<span>Avg time on site: <strong>' + (avgDuration != null ? formatDuration(avgDuration) : '—') + '</strong></span>' +
     '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
     '</div>' +
+    '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Devices:</span>' + devicePillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Traffic source:</span>' + trafficSourcePillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Non-Paid breakdown:</span>' + nonPaidSourcePillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Referrers:</span>' + referrerPillsHtml + '</div>' +
