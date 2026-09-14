@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['issues', 'Issue Reports'], ['suggestions', 'Suggestions'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['issues', 'Issue Reports'], ['suggestions', 'Suggestions'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['checkout-leads', 'Buy-Page Leads'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -2234,6 +2234,69 @@ async function renderStalledBuyers() {
   await loadStalledBuyers();
 }
 
+// ---- Buy-page leads (checkout_intents, not yet purchased) --------------
+// Read-only visibility into checkout_intents -- someone who reached the buy page and left an
+// email (either the buy page's own passive "Not ready today?" card, or the exit-intent modal that
+// fires when the cursor heads for the browser chrome) but hasn't purchased yet. No send button
+// here on purpose -- there's no bulk/promotional email mechanism in this admin yet (see
+// [[project_promo_email_pipeline_backlog]] for that as a separate, deliberately-scoped follow-up:
+// it needs its own unsubscribe/CAN-SPAM handling, not a quick bolt-on). "Copy emails" is the whole
+// action -- the admin sends via whatever tool they choose, same manual-human-judgment shape as
+// Stalled Buyers above.
+
+var checkoutLeadsSource = 'exit_capture';
+var checkoutLeadsDays = 90;
+var checkoutLeadsCache = [];
+
+async function loadCheckoutLeads() {
+  var container = document.getElementById('checkout-leads-table-container');
+  if (container) container.innerHTML = '<p class="muted">Loading…</p>';
+  var data = await apiFetch('/console/checkout-intents?source=' + encodeURIComponent(checkoutLeadsSource) +
+    '&days=' + encodeURIComponent(checkoutLeadsDays));
+  checkoutLeadsCache = data.items;
+  drawCheckoutLeadsTable();
+}
+
+function drawCheckoutLeadsTable() {
+  var container = document.getElementById('checkout-leads-table-container');
+  if (!container) return;
+  var rows = checkoutLeadsCache.map(function (r) {
+    var captured = new Date(r.created_at * 1000).toLocaleDateString();
+    var reminded = r.reminder_sent_at ? new Date(r.reminder_sent_at * 1000).toLocaleDateString() : '—';
+    var sourceLabel = r.source === 'exit_capture' ? 'Exit-intent' : r.source === 'checkout_form' ? 'Checkout form' : (r.source || 'Checkout form');
+    return '<tr><td>' + escapeHtml(r.email) + '</td><td class="muted">' + escapeHtml(r.exam_type) + '</td>' +
+      '<td class="muted">' + sourceLabel + '</td><td>' + captured + '</td><td class="muted">' + reminded + '</td></tr>';
+  }).join('');
+  var empty = checkoutLeadsCache.length ? '' : '<p class="muted">No leads at this filter.</p>';
+  container.innerHTML = empty + (checkoutLeadsCache.length
+    ? '<table><thead><tr><th>Email</th><th>Exam</th><th>Source</th><th>Captured</th><th>Reminder sent</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>'
+    : '');
+}
+
+async function renderCheckoutLeads() {
+  appEl.innerHTML = renderTabs('checkout-leads') +
+    '<p class="muted page-intro-text">Visitors who reached the buy page and left an email (passive card or exit-intent ' +
+    'modal) but haven\'t purchased yet. Each gets one automated reminder email already (see the daily cron); "Copy emails" ' +
+    'below is for a manual promo/sale-event send through whatever tool you use -- there\'s no bulk-send button in this ' +
+    'admin yet.</p>' +
+    '<div class="card generate-form">' +
+    '<label class="muted">Source</label>' +
+    '<select id="checkout-leads-source-input">' +
+    ['exit_capture', 'checkout_form', 'all'].map(function (s) {
+      return '<option value="' + s + '"' + (s === checkoutLeadsSource ? ' selected' : '') + '>' +
+        (s === 'exit_capture' ? 'Exit-intent only' : s === 'checkout_form' ? 'Checkout form only' : 'All sources') + '</option>';
+    }).join('') + '</select>' +
+    '<label class="muted">Within last</label>' +
+    '<input type="number" id="checkout-leads-days-input" class="stalled-days-input" value="' + checkoutLeadsDays + '" min="1">' +
+    '<span class="muted">days</span>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="refresh-checkout-leads">Refresh</button>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="copy-checkout-leads">Copy emails</button>' +
+    '</div>' +
+    '<div id="checkout-leads-table-container"><p class="muted">Loading…</p></div>';
+  await loadCheckoutLeads();
+}
+
 // ---- Visitors (site_visits, populated by the public site's tracking beacon) -----------
 
 var visitorsCache = [];
@@ -3135,6 +3198,7 @@ function route() {
   else if (view === 'settings') renderSettings();
   else if (view === 'refunds') renderRefunds();
   else if (view === 'stalled') renderStalledBuyers();
+  else if (view === 'checkout-leads') renderCheckoutLeads();
   else if (view === 'promotions') renderPromotions();
   else if (view === 'visitors') renderVisitors();
   else if (view === 'testimonials') renderTestimonials();
@@ -3469,6 +3533,16 @@ appEl.addEventListener('click', async function (e) {
       drawStalledBuyersTable();
       alert('Could not send reminder: ' + (err.data && err.data.error ? err.data.error : 'unknown error'));
     }
+  } else if (act === 'refresh-checkout-leads') {
+    var leadsSourceInput = document.getElementById('checkout-leads-source-input');
+    var leadsDaysInput = document.getElementById('checkout-leads-days-input');
+    checkoutLeadsSource = leadsSourceInput ? leadsSourceInput.value : checkoutLeadsSource;
+    var leadsDaysVal = leadsDaysInput ? parseInt(leadsDaysInput.value, 10) : NaN;
+    checkoutLeadsDays = Number.isFinite(leadsDaysVal) && leadsDaysVal > 0 ? leadsDaysVal : checkoutLeadsDays;
+    await loadCheckoutLeads();
+  } else if (act === 'copy-checkout-leads') {
+    var leadEmails = checkoutLeadsCache.map(function (r) { return r.email; }).join('\n');
+    if (leadEmails && navigator.clipboard) navigator.clipboard.writeText(leadEmails).catch(function () {});
   } else if (act === 'toggle-pricing-rows') {
     pricingRowsExpanded = !pricingRowsExpanded;
     updatePricingRowVisibility();
