@@ -2604,8 +2604,10 @@ function visitorsSummaryHtml(list) {
     '<span>Avg pages viewed: <strong>' + avgPages + '</strong></span>' +
     '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Devices:</span>' + devicePillsHtml + '</div>' +
-    '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Traffic source:</span>' + trafficSourcePillsHtml + '</div>' +
-    '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Non-Paid breakdown:</span>' + nonPaidSourcePillsHtml + '</div>' +
+    '<div class="visitors-summary-row visitors-summary-landing-row">' +
+    '<span class="muted">Traffic source:</span>' + trafficSourcePillsHtml +
+    '<span class="muted">Non-Paid breakdown:</span>' + nonPaidSourcePillsHtml +
+    '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Referrers:</span>' + referrerPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Keywords:</span>' + keywordPillsHtml + '</div>' +
     '<div class="visitors-summary-row visitors-summary-landing-row"><span class="muted">Landing pages:</span>' + landingPillsHtml + '</div>' +
