@@ -485,11 +485,13 @@ function isoDateFromUnix(ts) {
   return d.getFullYear() + '-' + mm + '-' + dd;
 }
 
-var CODES_COLUMNS = [['code', 'Code'], ['exam', 'Exam'], ['status', 'Status'], ['note', 'Note'], ['expires', 'Expires'],
+var CODES_COLUMNS = [['code', 'Code'], ['exam', 'Exam'], ['topics', 'Topics'], ['status', 'Status'], ['note', 'Note'], ['expires', 'Expires'],
   ['redeemed', 'Redeemed'], ['lastUsed', 'Last Used'], ['accuracy', 'Accuracy'], ['coverage', 'Coverage'], ['examCount', 'Mock Exams']];
 // Actions cell (Save/Details/Revoke) sits at index 1, right after Code -- moved there 2026-09-10
-// at the user's request, so every other data column shifted one position right.
-var CODES_CELL_INDEX = { code: 0, exam: 2, status: 3, note: 4, expires: 5, redeemed: 6, lastUsed: 7, accuracy: 8, coverage: 9, examCount: 10 };
+// at the user's request, so every other data column shifted one position right. Topics sits right
+// after Exam (index 3) -- added alongside admin's own topic-scoped code generation (see project
+// memory project_ca_cdl_topic_purchase_pilot) -- everything from Status on shifted one further right.
+var CODES_CELL_INDEX = { code: 0, exam: 2, topics: 3, status: 4, note: 5, expires: 6, redeemed: 7, lastUsed: 8, accuracy: 9, coverage: 10, examCount: 11 };
 
 var codesSort = { key: 'lastUsed', dir: -1 }; // default: most recently used first
 
@@ -611,11 +613,14 @@ async function renderCodes() {
     var coverageCell = progress && progress.coveragePct != null ? progress.coveragePct + '%' : '—';
     var examCountCell = examCountByCode[c.code] || 0;
     var recentClass = c.last_used_at && c.last_used_at >= recentCutoff ? ' code-row-recent' : '';
+    var topicsList = c.topics_json ? JSON.parse(c.topics_json) : null;
+    var topicsCell = topicsList ? '<span title="' + escapeHtml(topicsList.join(', ')) + '">' + topicsList.length + ' topic' + (topicsList.length === 1 ? '' : 's') + '</span>' : 'Full';
     return '<tr data-code="' + escapeHtml(c.code) + '" data-status="' + escapeHtml(c.status) + '" data-exam="' + escapeHtml(c.exam_type) + '" class="' + recentClass.trim() + '"><td>' + c.code + '</td>' +
       '<td><button class="btn-secondary btn-sm" data-act="save-code" data-code="' + escapeHtml(c.code) + '">Save</button> ' +
       (c.status === 'redeemed' ? '<button class="btn-secondary btn-sm" data-act="open-code-detail" data-code="' + escapeHtml(c.code) + '">Details</button> ' : '') +
       (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td>' +
       '<td>' + c.exam_type + '</td>' +
+      '<td>' + topicsCell + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
       '<td><input type="text" class="code-note-input" data-original="' + escapeHtml(c.note || '') + '" value="' + escapeHtml(c.note || '') + '"></td>' +
       '<td><input type="date" class="code-expires-input" data-original="' + expiresIso + '" value="' + expiresIso + '"></td>' +
@@ -626,16 +631,22 @@ async function renderCodes() {
       '<td class="settings-readonly-cell">' + examCountCell + '</td></tr>';
   }).join('');
 
+  var generateExamTypeOptions = EXAM_TYPES.filter(function (t) { return t[0] !== 'mlo'; })
+    .sort(function (a, b) { return a[1].localeCompare(b[1]); });
+  generateCodeSelectedTopics = [];
   appEl.innerHTML = renderTabs('codes') +
     '<div class="card">' +
     '<form data-act="generate-code" class="generate-form">' +
-    '<select name="examType">' + EXAM_TYPES.filter(function (t) { return t[0] !== 'mlo'; })
-      .sort(function (a, b) { return a[1].localeCompare(b[1]); }).map(function (t) {
+    '<select name="examType" id="generate-code-exam-select">' + generateExamTypeOptions.map(function (t) {
       return '<option value="' + t[0] + '">' + t[1] + '</option>';
     }).join('') + '</select>' +
     '<input type="text" name="note" placeholder="note (optional)">' +
     '<input type="number" name="expiresInDays" placeholder="expires in days (optional)" class="expires-input">' +
     '<button class="btn-primary" type="submit">Generate code</button>' +
+    // Populated on demand (see refreshGenerateCodeTopics) -- stays empty/hidden for every track
+    // without any à la carte topics offered (every track except CA CDL today), same "renders
+    // nothing" pattern the site's own buy-page picker uses.
+    '<div id="generate-code-topics-wrap" class="generate-code-topics-wrap"></div>' +
     '</form></div>' +
     '<div class="questions-toolbar">' +
     '<span id="codes-status-filter-wrap">' + renderCodesStatusFilterPills(data.codes) + '</span>' +
@@ -647,6 +658,34 @@ async function renderCodes() {
   codesFilterQuery = '';
   applyCodesSortOrder();
   updateCodesRowVisibility();
+  if (generateExamTypeOptions.length) refreshGenerateCodeTopics(generateExamTypeOptions[0][0]);
+}
+
+// ---- Codes tab: à la carte topic picker for the "Generate code" form ------
+// See project memory project_ca_cdl_topic_purchase_pilot -- lets admin issue a comp/support code
+// scoped to specific topics (codes.topics_json), same as a real topic purchase ends up with, rather
+// than only ever being able to issue full-track codes.
+
+var generateCodeSelectedTopics = []; // topic labels currently checked; empty = full track access
+
+function generateCodeTopicsHtml(items) {
+  if (!items.length) return '';
+  return '<div class="generate-code-topics-label muted">Optional: scope to specific topics (leave all unchecked for full track access)</div>' +
+    '<div class="generate-code-topics-list">' + items.map(function (t) {
+      return '<label class="generate-code-topic-option"><input type="checkbox" data-act="toggle-generate-code-topic" value="' +
+        escapeHtml(t.label) + '"> ' + escapeHtml(t.label) + ' <span class="muted">(' + t.declared_pct + '%)</span></label>';
+    }).join('') + '</div>';
+}
+
+async function refreshGenerateCodeTopics(examType) {
+  generateCodeSelectedTopics = [];
+  var wrap = document.getElementById('generate-code-topics-wrap');
+  var res = await apiFetch('/track-key-breakdown?examType=' + encodeURIComponent(examType));
+  // A later exam-type change may have started its own fetch and resolved first -- only apply this
+  // response if the select still shows the exam type this fetch was actually for.
+  var select = document.getElementById('generate-code-exam-select');
+  if (!wrap || !select || select.value !== examType) return;
+  wrap.innerHTML = generateCodeTopicsHtml(res.items || []);
 }
 
 // ---- Codes tab: per-code usage drilldown -------------------------------
@@ -3258,6 +3297,7 @@ appEl.addEventListener('submit', async function (e) {
         examType: f.examType.value,
         note: f.note.value || undefined,
         expiresInDays: f.expiresInDays.value ? Number(f.expiresInDays.value) : undefined,
+        topics: generateCodeSelectedTopics.length ? generateCodeSelectedTopics : undefined,
       },
     });
     renderCodes();
@@ -3942,6 +3982,15 @@ appEl.addEventListener('change', function (e) {
   if (e.target.id === 'codes-exam-select') {
     codesExamFilter = e.target.value;
     updateCodesRowVisibility();
+  }
+  if (e.target.id === 'generate-code-exam-select') {
+    refreshGenerateCodeTopics(e.target.value);
+  }
+  if (e.target.getAttribute && e.target.getAttribute('data-act') === 'toggle-generate-code-topic') {
+    var topicVal = e.target.value;
+    var idx = generateCodeSelectedTopics.indexOf(topicVal);
+    if (e.target.checked && idx === -1) generateCodeSelectedTopics.push(topicVal);
+    else if (!e.target.checked && idx !== -1) generateCodeSelectedTopics.splice(idx, 1);
   }
   if (e.target.id === 'pricing-hide-non-required-checkbox') {
     pricingHideNonRequired = e.target.checked;

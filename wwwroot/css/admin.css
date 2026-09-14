@@ -160,6 +160,14 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 
 .generate-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .expires-input { width: 11rem; }
+/* À la carte topic picker for admin's "Generate code" form -- see project memory
+   project_ca_cdl_topic_purchase_pilot. flex-basis:100% drops it to its own row within
+   .generate-form's flex-wrap layout, below the exam type/note/expires inputs. Empty/absent for
+   every track without track_key_breakdown rows (see refreshGenerateCodeTopics). */
+.generate-code-topics-wrap:not(:empty) { flex-basis: 100%; margin-top: 0.4rem; padding-top: 0.6rem; border-top: 1px solid var(--border); }
+.generate-code-topics-label { font-size: 0.8rem; margin-bottom: 0.4rem; }
+.generate-code-topics-list { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; }
+.generate-code-topic-option { display: flex; align-items: baseline; gap: 0.35rem; font-size: 0.85rem; cursor: pointer; font-weight: 400; }
 .stalled-days-input { width: 5rem; }
 .hidden-file-input { display: none; }
 
