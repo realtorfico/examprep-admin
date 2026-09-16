@@ -91,6 +91,13 @@ function promotionFormHtml() {
     'Require email verification (sends a one-time confirmation link before the discount applies — recommended with a domain restriction, since that alone only checks the typed string, not real ownership)</label>' +
     '<label class="promotion-active-toggle"><input type="checkbox" name="firstPurchaseOnly"' + (p.first_purchase_only ? ' checked' : '') + '> ' +
     'First-time buyers only (rejected at checkout if the email already has access from any prior purchase — requires an email to be entered)</label>' +
+    // Kind options come from the live track registry (EXAM_TYPES' 4th tuple field), so the stored
+    // value always exactly matches track_registry.kind -- the API compares them verbatim.
+    '<label>Restrict to track kind (optional — the discount only applies to full-track purchases of this kind, and the banner only shows on that kind\'s pages)<select name="requiredTrackKind">' +
+    '<option value="">Any track</option>' +
+    EXAM_TYPES.map(function (t) { return t[3]; }).filter(function (k, i, arr) { return k && arr.indexOf(k) === i; }).sort().map(function (k) {
+      return '<option value="' + escapeHtml(k) + '"' + (p.required_track_kind === k ? ' selected' : '') + '>' + escapeHtml(k) + '</option>';
+    }).join('') + '</select></label>' +
     '<p class="muted page-intro-text">A points multiplier is a completely different effect from the discount above — ' +
     'redeemed on the Refer-a-Friend page (not checkout), it multiplies future referral points on that person\'s account ' +
     'for a set number of days. There\'s no domain to check for something like "retired professional," so the promo code ' +
@@ -114,6 +121,7 @@ function promotionRowHtml(p, index, total) {
       (p.required_email_domain ? ' · requires ' + escapeHtml(p.required_email_domain) + ' email' : '') +
       (p.require_email_verification ? ' (verified)' : '') +
       (p.first_purchase_only ? ' · first-time buyers only' : '') +
+      (p.required_track_kind ? ' · ' + escapeHtml(p.required_track_kind) + ' full track only' : '') +
       ' · ' + p.redeemed_count + ' redeemed';
   } else if (p.points_multiplier) {
     codeInfo = '<span class="badge">' + escapeHtml(p.promo_code || '—') + '</span> ' +
@@ -3338,6 +3346,7 @@ appEl.addEventListener('submit', async function (e) {
       requiredEmailDomain: pf.requiredEmailDomain.value.trim() || undefined,
       requireEmailVerification: pf.requireEmailVerification.checked,
       firstPurchaseOnly: pf.firstPurchaseOnly.checked,
+      requiredTrackKind: pf.requiredTrackKind.value || undefined,
       pointsMultiplier: pf.pointsMultiplier.value ? parseInt(pf.pointsMultiplier.value, 10) : undefined,
       pointsMultiplierDays: pf.pointsMultiplierDays.value ? parseInt(pf.pointsMultiplierDays.value, 10) : undefined,
       active: pf.active.checked,
