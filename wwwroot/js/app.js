@@ -2433,7 +2433,7 @@ function visitorsFilterBarHtml() {
     (visitorsFilters.reachedBuyOnly ? ' checked' : '') + '> Reached Buy only</label>' +
     '<label class="muted" title="Client-side filter against the already-loaded is_bot flag -- no re-fetch needed"><input type="checkbox" id="visitors-exclude-bots-checkbox"' +
     (visitorsFilters.excludeBots ? ' checked' : '') + '> Exclude bots</label>' +
-    '<button class="btn-secondary btn-sm" type="button" data-act="apply-visitors-filters">Apply</button>' +
+    '<button class="btn-primary visitors-apply-btn" type="button" data-act="apply-visitors-filters">Apply</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="reset-visitors-filters">Reset</button>' +
     '<button class="btn-secondary btn-sm" type="button" data-act="save-visitors-min-duration-default" title="Save the current Min duration value as what this tab opens to next time">Save min as default</button>' +
     '</div>';
@@ -2660,7 +2660,7 @@ function visitorsSummaryHtml(list) {
 
   return '<div class="card visitors-summary-bar">' +
     '<div class="visitors-summary-row">' +
-    '<span><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
+    '<span class="visitors-count-hero"><strong>' + list.length.toLocaleString() + '</strong> visitors</span>' +
     '<span><strong>' + bots.toLocaleString() + '</strong> bots</span>' +
     '<span><strong>' + reachedBuy.toLocaleString() + '</strong> reached buy</span>' +
     '<span><strong>' + purchased.toLocaleString() + '</strong> purchased</span>' +

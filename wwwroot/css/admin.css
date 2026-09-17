@@ -106,6 +106,9 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: u
 }
 .visitors-summary-bar strong { color: var(--accent-hover); }
 .visitors-summary-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: center; }
+/* Visitors tab: the count and the Apply button are what the owner reaches for first (2026-09-17). */
+.visitors-count-hero { display: inline-flex; align-items: baseline; gap: 0.45rem; font-size: 1.15rem; font-weight: 600; }
+.visitors-count-hero strong { font-size: 2.4rem; line-height: 1; font-weight: 800; color: var(--accent); }
 .visitors-summary-landing-row { gap: 0.4rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
 .visitors-summary-pill {
   background: var(--surface-3, var(--surface)); border: 1px solid var(--border);
@@ -120,6 +123,11 @@ button, .btn {
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .btn-secondary { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
 .btn-secondary:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); filter: none; }
+/* Visitors tab Apply button (2026-09-17) -- after .btn-primary so its font-weight/padding win at equal specificity. */
+.visitors-apply-btn {
+  font-size: 1.1rem; font-weight: 800; padding: 0.6rem 1.8rem; letter-spacing: 0.02em;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
 .btn-approve { border-color: var(--correct); color: var(--correct); }
 .btn-approve:hover { background: color-mix(in srgb, var(--correct) 12%, transparent); }
 .btn-deny { border-color: var(--incorrect); color: var(--incorrect); }
