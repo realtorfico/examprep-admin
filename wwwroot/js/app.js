@@ -3469,7 +3469,16 @@ appEl.addEventListener('click', async function (e) {
   if (el.tagName === 'A' && el.getAttribute('href') === '#') e.preventDefault();
   var act = el.getAttribute('data-act');
   if (act === 'revoke-code') {
-    await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: el.getAttribute('data-code') } });
+    // Confirm first (2026-09-17): the button sits right next to Save/Details on every row, and a revoke can't be
+    // undone from the console. See test/codes-revoke-confirm.test.js.
+    var revokeCode = el.getAttribute('data-code');
+    var revokeRow = el.closest('tr');
+    var revokeStatus = revokeRow ? revokeRow.getAttribute('data-status') : '';
+    var revokeMessage = 'Revoke code ' + revokeCode + '?\n\n' +
+      (revokeStatus === 'redeemed' ? 'This code has been redeemed. The person using it will lose access immediately.\n\n' : '') +
+      'This cannot be undone.';
+    if (!confirm(revokeMessage)) return;
+    await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: revokeCode } });
     renderCodes();
   } else if (act === 'open-code-detail') {
     openCodeDetail(el.getAttribute('data-code'));
