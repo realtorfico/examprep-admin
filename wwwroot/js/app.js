@@ -590,6 +590,14 @@ function updateCodesRowVisibility() {
   });
 }
 
+// Revoke for a live code, Un-revoke for a revoked one (Un-revoke added 2026-09-17 -- see
+// test/codes-unrevoke-button.test.js and the API's handleCodesUnrevoke).
+function codeRevokeButtonHtml(c) {
+  return c.status === 'revoked'
+    ? '<button class="btn" data-act="unrevoke-code" data-code="' + escapeHtml(c.code) + '">Un-revoke</button>'
+    : '<button class="btn" data-act="revoke-code" data-code="' + escapeHtml(c.code) + '">Revoke</button>';
+}
+
 async function renderCodes() {
   appEl.innerHTML = renderTabs('codes') + '<p>Loading…</p>';
   // Accuracy/Coverage/Mock Exams are read-only, computed the same way the Stats page's own "User
@@ -626,7 +634,7 @@ async function renderCodes() {
     return '<tr data-code="' + escapeHtml(c.code) + '" data-status="' + escapeHtml(c.status) + '" data-exam="' + escapeHtml(c.exam_type) + '" class="' + recentClass.trim() + '"><td>' + c.code + '</td>' +
       '<td><button class="btn-secondary btn-sm" data-act="save-code" data-code="' + escapeHtml(c.code) + '">Save</button> ' +
       (c.status === 'redeemed' ? '<button class="btn-secondary btn-sm" data-act="open-code-detail" data-code="' + escapeHtml(c.code) + '">Details</button> ' : '') +
-      (c.status !== 'revoked' ? '<button class="btn" data-act="revoke-code" data-code="' + c.code + '">Revoke</button>' : '') + '</td>' +
+      codeRevokeButtonHtml(c) + '</td>' +
       '<td>' + c.exam_type + '</td>' +
       '<td>' + topicsCell + '</td>' +
       '<td><span class="badge ' + c.status + '">' + c.status + '</span></td>' +
@@ -3479,6 +3487,22 @@ appEl.addEventListener('click', async function (e) {
       'This cannot be undone.';
     if (!confirm(revokeMessage)) return;
     await apiFetch('/console/codes/revoke', { method: 'POST', body: { code: revokeCode } });
+    renderCodes();
+  } else if (act === 'unrevoke-code') {
+    // Undoes a revoke: the API puts the code back to redeemed/unused, so its user regains access. Refused for
+    // a code revoked by an issued 7-day refund. See test/codes-unrevoke-button.test.js.
+    var unrevokeCode = el.getAttribute('data-code');
+    if (!confirm('Un-revoke code ' + unrevokeCode + '?\n\nIt goes back to how it was before it was revoked: ' +
+      'whoever redeemed it gets access again, and an unused code can be redeemed again.')) return;
+    try {
+      await apiFetch('/console/codes/unrevoke', { method: 'POST', body: { code: unrevokeCode } });
+    } catch (err) {
+      var unrevokeError = err.data && err.data.error;
+      alert(unrevokeError === 'code_refunded'
+        ? 'Code ' + unrevokeCode + ' was revoked because its 7-day refund was issued, so it stays revoked.'
+        : 'Could not un-revoke ' + unrevokeCode + ': ' + (unrevokeError || err.message));
+      return;
+    }
     renderCodes();
   } else if (act === 'open-code-detail') {
     openCodeDetail(el.getAttribute('data-code'));
