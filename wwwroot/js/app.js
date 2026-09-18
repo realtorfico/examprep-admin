@@ -43,7 +43,7 @@ function escapeHtml(s) {
 }
 
 function renderTabs(active) {
-  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['issues', 'Issue Reports'], ['suggestions', 'Suggestions'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['checkout-leads', 'Buy-Page Leads'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
+  var tabs = [['tracks', 'Tracks'], ['categories', 'Categories'], ['blog', 'Blog'], ['settings', 'Settings'], ['points', 'Points'], ['codes', 'Codes'], ['promotions', 'Promotions'], ['refunds', 'Refund Claims'], ['questions', 'Question Bank'], ['testimonials', 'Testimonials'], ['issues', 'Issue Reports'], ['suggestions', 'Suggestions'], ['affiliates', 'Affiliates'], ['stats', 'Stats'], ['stalled', 'Stalled Buyers'], ['checkout-leads', 'Buy-Page Leads'], ['study-link-leads', 'Study-Link Leads'], ['visitors', 'Visitors'], ['alerts', 'Alerts']];
   return renderTopControls() + '<nav class="tabs">' + tabs.map(function (t) {
     return '<a href="#/' + t[0] + '"' + (active === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
   }).join('') + '</nav>';
@@ -2369,6 +2369,61 @@ async function renderCheckoutLeads() {
   await loadCheckoutLeads();
 }
 
+// ---- Study-link leads (study_link_requests) ---------------------------------------------------
+// Everyone who asked for the free practice link on the CDL pages -- the site's study-link card on
+// /cdl and the /cdl/{state} track pages, and the desktop exit popup on the track pages (2026-09-18).
+// Each got that one email. The Tips & offers column is their separate, unticked-by-default consent.
+// Deliberately no "Copy emails": sending offers to these people waits for the promo pipeline
+// (unsubscribe link + postal address), not a manual export to some other tool.
+
+var studyLinkLeadsOptIn = 'all';
+var studyLinkLeadsDays = 90;
+var studyLinkLeadsCache = [];
+
+function studyLinkLeadRowHtml(r) {
+  var sourceLabels = { category_card: '/cdl card', track_card: 'Track page card', track_exit: 'Exit popup (track page)' };
+  var when = new Date(r.updated_at * 1000).toLocaleDateString();
+  var sent = r.sent_at ? new Date(r.sent_at * 1000).toLocaleDateString() : '<span class="muted">Not sent</span>';
+  var optIn = r.marketing_opt_in ? '<strong>Yes</strong>' : '<span class="muted">No</span>';
+  return '<tr><td>' + escapeHtml(r.email) + '</td><td class="muted">' + escapeHtml(r.exam_type) + '</td>' +
+    '<td class="muted">' + escapeHtml(sourceLabels[r.source] || r.source) + '</td>' +
+    '<td>' + optIn + '</td><td>' + when + '</td><td>' + sent + '</td></tr>';
+}
+
+async function loadStudyLinkLeads() {
+  var container = document.getElementById('study-link-leads-table-container');
+  if (container) container.innerHTML = '<p class="muted">Loading…</p>';
+  var data = await apiFetch('/console/study-link-requests?days=' + encodeURIComponent(studyLinkLeadsDays) +
+    '&optIn=' + encodeURIComponent(studyLinkLeadsOptIn));
+  studyLinkLeadsCache = data.items;
+  container = document.getElementById('study-link-leads-table-container');
+  if (!container) return;
+  container.innerHTML = studyLinkLeadsCache.length
+    ? '<table><thead><tr><th>Email</th><th>Exam</th><th>Where</th><th>Tips &amp; offers</th><th>Last asked</th><th>Link sent</th></tr></thead>' +
+      '<tbody>' + studyLinkLeadsCache.map(studyLinkLeadRowHtml).join('') + '</tbody></table>'
+    : '<p class="muted">No leads at this filter.</p>';
+}
+
+async function renderStudyLinkLeads() {
+  appEl.innerHTML = renderTabs('study-link-leads') +
+    '<p class="muted page-intro-text">Visitors who asked for the free practice link on the CDL pages. Each got that one ' +
+    'email. "Tips &amp; offers" is their separate opt-in; nothing sends offers yet (that needs the promo email pipeline, ' +
+    'with an unsubscribe link and a postal address).</p>' +
+    '<div class="card generate-form">' +
+    '<label class="muted">Show</label>' +
+    '<select id="study-link-leads-optin-input">' +
+    '<option value="all"' + (studyLinkLeadsOptIn === 'all' ? ' selected' : '') + '>Everyone</option>' +
+    '<option value="yes"' + (studyLinkLeadsOptIn === 'yes' ? ' selected' : '') + '>Opted in to tips &amp; offers</option>' +
+    '</select>' +
+    '<label class="muted">Within last</label>' +
+    '<input type="number" id="study-link-leads-days-input" class="stalled-days-input" value="' + studyLinkLeadsDays + '" min="1">' +
+    '<span class="muted">days</span>' +
+    '<button class="btn-secondary btn-sm" type="button" data-act="refresh-study-link-leads">Refresh</button>' +
+    '</div>' +
+    '<div id="study-link-leads-table-container"><p class="muted">Loading…</p></div>';
+  await loadStudyLinkLeads();
+}
+
 // ---- Visitors (site_visits, populated by the public site's tracking beacon) -----------
 
 var visitorsCache = [];
@@ -3291,6 +3346,7 @@ function route() {
   else if (view === 'refunds') renderRefunds();
   else if (view === 'stalled') renderStalledBuyers();
   else if (view === 'checkout-leads') renderCheckoutLeads();
+  else if (view === 'study-link-leads') renderStudyLinkLeads();
   else if (view === 'promotions') renderPromotions();
   else if (view === 'visitors') renderVisitors();
   else if (view === 'testimonials') renderTestimonials();
@@ -3659,6 +3715,13 @@ appEl.addEventListener('click', async function (e) {
     var leadsDaysVal = leadsDaysInput ? parseInt(leadsDaysInput.value, 10) : NaN;
     checkoutLeadsDays = Number.isFinite(leadsDaysVal) && leadsDaysVal > 0 ? leadsDaysVal : checkoutLeadsDays;
     await loadCheckoutLeads();
+  } else if (act === 'refresh-study-link-leads') {
+    var studyOptInInput = document.getElementById('study-link-leads-optin-input');
+    var studyDaysInput = document.getElementById('study-link-leads-days-input');
+    studyLinkLeadsOptIn = studyOptInInput ? studyOptInInput.value : studyLinkLeadsOptIn;
+    var studyDaysVal = studyDaysInput ? parseInt(studyDaysInput.value, 10) : NaN;
+    studyLinkLeadsDays = Number.isFinite(studyDaysVal) && studyDaysVal > 0 ? studyDaysVal : studyLinkLeadsDays;
+    await loadStudyLinkLeads();
   } else if (act === 'copy-checkout-leads') {
     var leadEmails = checkoutLeadsCache.map(function (r) { return r.email; }).join('\n');
     if (leadEmails && navigator.clipboard) navigator.clipboard.writeText(leadEmails).catch(function () {});
