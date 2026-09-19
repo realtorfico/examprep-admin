@@ -883,6 +883,15 @@ var STATE_LABELS = {
 // derives it automatically.
 var EXCLUDED_STATES_BY_CATEGORY = [
   {
+    category: 'Notary',
+    groups: [
+      // Built, then switched off in track_registry on 2026-09-16 (active = 0) because these states
+      // commission notaries with no exam at all -- there is nothing to practice for. Listed here so
+      // the panel's per-category totals reach 50 (27 live + 23), same as the public homepage pill.
+      { reason: 'No notary exam is required in these states -- tracks built, then switched off 2026-09-16', states: ['AK', 'AL', 'DE', 'FL', 'GA', 'IA', 'ID', 'KS', 'KY', 'MA', 'MI', 'MN', 'MS', 'ND', 'NH', 'OK', 'SC', 'SD', 'TN', 'TX', 'VA', 'WA', 'WV'] },
+    ],
+  },
+  {
     category: 'Real Estate Broker',
     groups: [
       { reason: 'Entry-level license is itself the "Broker" tier (no Salesperson tier exists) -- the further upgrade designation is earned via an experience/points requirement or a self-paced course, not a second proctored exam', states: ['NC', 'CO', 'IN'] },
@@ -902,6 +911,7 @@ var EXCLUDED_STATES_BY_CATEGORY = [
     category: 'Boating',
     groups: [
       { reason: 'No mandatory boating-education law exists at all (voluntary/insurance-discount only)', states: ['ID', 'SD', 'AK', 'WY'] },
+      { reason: 'No exam required -- track was built, then switched off 2026-09-16', states: ['AZ'] },
       { reason: 'A mandate exists, but real-world boating-culture fit was judged weak despite population', states: ['CO'] },
       { reason: 'Mandate is permanently capped to a narrow youth age-band (e.g. ages 12-17 only) with no cohort growth over time', states: ['IN', 'KY', 'OR', 'OK', 'UT', 'IA', 'KS', 'MT', 'ND'] },
       { reason: 'Broad, growing mandate but below the population cutoff -- flagged as a reconsideration candidate, not yet approved to build', states: ['ME', 'NH', 'RI'] },
