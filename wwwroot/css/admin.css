@@ -372,3 +372,7 @@ tr.code-row-recent .code-note-input { font-weight: 600; } /* <input> doesn't inh
 .questions-current-track { margin: 0 0 0.5rem; }
 .questions-pagination { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 0.75rem; flex-wrap: wrap; }
 .questions-pagination-buttons { display: flex; gap: 0.5rem; }
+/* Stalled Buyers: confirmation after a manual reminder, and each row's expandable reminder history. */
+.stalled-sent-notice { margin: 0 0 0.75rem; color: var(--correct); font-weight: 600; font-size: 0.9rem; }
+.reminder-history summary { cursor: pointer; white-space: nowrap; }
+.reminder-history ul { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: var(--muted); }

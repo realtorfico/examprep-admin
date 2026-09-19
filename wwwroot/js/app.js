@@ -2262,6 +2262,25 @@ async function renderRefunds() {
 var stalledBuyersDays = 7;
 var stalledBuyersCache = [];
 var stalledBuyerSendingIds = {}; // userId -> true while a send is in-flight, disables that row's button
+var stalledBuyersNotice = ''; // "Reminder sent to ... on ..." after a manual send; cleared by the next send
+
+// Date AND time, in the admin's own timezone -- a date alone hid a second send on the same day.
+function formatReminderTime(t) {
+  return new Date(t * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+// "Last reminded" cell: the latest send (when, manual or automatic, how many in all), expanding to every
+// send from the API's reminder_log (u.history, newest first).
+function stalledReminderCellHtml(u) {
+  var history = u.history || [];
+  if (!history.length) return '<span class="muted">—</span>';
+  var sourceLabel = function (source) { return escapeHtml({ manual: 'Manual', auto: 'Automatic' }[source] || source); };
+  var items = history.map(function (h) {
+    return '<li>' + formatReminderTime(h.sent_at) + ' &middot; ' + sourceLabel(h.source) + ' &middot; ' + escapeHtml(h.email) + '</li>';
+  }).join('');
+  return '<details class="reminder-history"><summary>' + formatReminderTime(history[0].sent_at) + ' &middot; ' +
+    sourceLabel(history[0].source) + ' &middot; ' + history.length + ' sent</summary><ul>' + items + '</ul></details>';
+}
 
 async function loadStalledBuyers() {
   var container = document.getElementById('stalled-buyers-table-container');
@@ -2276,23 +2295,24 @@ function drawStalledBuyersTable() {
   if (!container) return;
   var rows = stalledBuyersCache.map(function (u) {
     var lastSeen = new Date(u.last_seen_at * 1000).toLocaleDateString();
-    var lastReminded = u.last_reminder_sent_at ? new Date(u.last_reminder_sent_at * 1000).toLocaleDateString() : '—';
     var sending = stalledBuyerSendingIds[u.user_id];
     var actionCell = !u.buyer_email
       ? '<span class="muted">No email on file</span>'
-      : '<button class="btn-secondary btn-sm" type="button" data-act="send-stalled-reminder" data-user-id="' + u.user_id + '"' +
+      : '<button class="btn-secondary btn-sm" type="button" data-act="send-stalled-reminder" data-user-id="' + escapeHtml(u.user_id) + '"' +
         (sending ? ' disabled' : '') + '>' + (sending ? 'Sending…' : 'Send reminder') + '</button>';
-    return '<tr><td>' + (u.buyer_email || '—') + '</td><td>' + u.code + '</td><td class="muted">' + u.exam_type + '</td>' +
-      '<td>' + lastSeen + '</td><td class="muted">' + lastReminded + '</td><td>' + actionCell + '</td></tr>';
+    return '<tr><td>' + escapeHtml(u.buyer_email || '—') + '</td><td>' + escapeHtml(u.code) + '</td><td class="muted">' + escapeHtml(u.exam_type) + '</td>' +
+      '<td>' + lastSeen + '</td><td>' + stalledReminderCellHtml(u) + '</td><td>' + actionCell + '</td></tr>';
   }).join('');
+  var notice = stalledBuyersNotice ? '<p class="stalled-sent-notice" role="status">' + escapeHtml(stalledBuyersNotice) + '</p>' : '';
   var empty = stalledBuyersCache.length ? '' : '<p class="muted">No stalled buyers at this threshold.</p>';
-  container.innerHTML = empty + (stalledBuyersCache.length
+  container.innerHTML = notice + empty + (stalledBuyersCache.length
     ? '<table><thead><tr><th>Email</th><th>Code</th><th>Exam</th><th>Last active</th><th>Last reminded</th><th></th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table>'
     : '');
 }
 
 async function renderStalledBuyers() {
+  stalledBuyersNotice = '';
   appEl.innerHTML = renderTabs('stalled') +
     '<p class="muted page-intro-text">Buyers who redeemed a code but haven\'t been active in a while. Sending is manual, ' +
     'per user, one click at a time -- nothing here goes out automatically.</p>' +
@@ -3697,16 +3717,22 @@ appEl.addEventListener('click', async function (e) {
     await loadStalledBuyers();
   } else if (act === 'send-stalled-reminder') {
     var remindUserId = el.getAttribute('data-user-id');
+    stalledBuyersNotice = '';
     stalledBuyerSendingIds[remindUserId] = true;
     drawStalledBuyersTable();
+    var sentRes = null;
     try {
-      await apiFetch('/console/stalled-buyers/remind', { method: 'POST', body: { userId: remindUserId } });
-      delete stalledBuyerSendingIds[remindUserId];
-      await loadStalledBuyers(); // refreshes "Last reminded" and re-applies the threshold filter
+      sentRes = await apiFetch('/console/stalled-buyers/remind', { method: 'POST', body: { userId: remindUserId } });
     } catch (err) {
       delete stalledBuyerSendingIds[remindUserId];
       drawStalledBuyersTable();
       alert('Could not send reminder: ' + (err.data && err.data.error ? err.data.error : 'unknown error'));
+    }
+    if (sentRes) {
+      // Outside the try, so a failed list reload after a real send isn't reported as a failed send.
+      delete stalledBuyerSendingIds[remindUserId];
+      stalledBuyersNotice = 'Reminder sent to ' + sentRes.email + ' on ' + formatReminderTime(sentRes.sentAt) + '.';
+      await loadStalledBuyers(); // refreshes the row's history and re-applies the threshold filter
     }
   } else if (act === 'refresh-checkout-leads') {
     var leadsSourceInput = document.getElementById('checkout-leads-source-input');
